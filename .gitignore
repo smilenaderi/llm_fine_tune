@@ -23,13 +23,57 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+*.pyc
 
 # Training artifacts
 checkpoints/
-data/*.jsonl
+*.pth
+*.pt
+*.bin
+*.safetensors
+*.ckpt
+*.onnx
+
+# Datasets
+data/
+*.jsonl
+*.json
+*.csv
+*.parquet
+*.arrow
+*.feather
+datasets/
+cache/
+
+# Model files
+models/
+*.model
+*.h5
+*.pb
+adapter_*/
+merged_model/
+
+# Logs and outputs
 logs/
+*.log
 *.out
 *.err
+wandb/
+runs/
+tensorboard/
+mlruns/
+outputs/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+.cache/
+tmp/
+temp/
 
 # IDE
 .vscode/
@@ -37,7 +81,28 @@ logs/
 *.swp
 *.swo
 *~
+.project
+.pydevproject
+.settings/
 
 # OS
 .DS_Store
 Thumbs.db
+desktop.ini
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Environment
+.env
+.env.local
+*.env
+
+# Hugging Face
+.huggingface/
+hf_cache/
+
+# Combined files
+combined_files.txt
+
