@@ -1,17 +1,47 @@
 #!/bin/bash
 # Helper scripts for monitoring SLURM jobs
 
-# Watch the latest error log
+# Watch the latest log (both output and errors)
 watch_latest() {
-    latest_file=$(ls -t logs/*.err 2>/dev/null | head -n 1)
+    latest_err=$(ls -t logs/*.err 2>/dev/null | head -n 1)
     
-    if [ -z "$latest_file" ]; then
+    if [ -z "$latest_err" ]; then
         echo "❌ No log files found in logs/"
         return 1
     fi
     
-    echo "📋 Tailing: $latest_file"
-    tail -f "$latest_file"
+    # Get corresponding .out file
+    latest_out="${latest_err%.err}.out"
+    
+    echo "📋 Watching: $latest_err and $latest_out"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    
+    # Show output file first (has success messages)
+    if [ -f "$latest_out" ]; then
+        echo "📤 OUTPUT:"
+        cat "$latest_out"
+        echo ""
+    fi
+    
+    # Show errors/warnings
+    if [ -f "$latest_err" ]; then
+        echo "⚠️  STDERR:"
+        cat "$latest_err"
+    fi
+    
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    
+    # Check for success indicators
+    if grep -q "✅" "$latest_out" 2>/dev/null; then
+        echo "✅ JOB COMPLETED SUCCESSFULLY!"
+    elif grep -q "Error\|Failed\|Traceback" "$latest_err" 2>/dev/null; then
+        echo "❌ JOB FAILED - Check errors above"
+    else
+        echo "⏳ Job may still be running..."
+    fi
+    
+    echo ""
+    echo "💡 Tip: Use 'tail -f $latest_out' to follow live output"
 }
 
 # Monitor GPU usage for running job
