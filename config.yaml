@@ -125,7 +125,7 @@ dataset:
   #   - 60,000: Full dataset (~45-90 min)
   #   - null: Use entire dataset
   # Note: This applies AFTER split selection
-  max_samples: 20000
+  max_samples: 1000
   
   # Streaming mode (memory efficient for large datasets)
   # Set to true for datasets >100k samples
