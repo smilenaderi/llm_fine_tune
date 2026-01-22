@@ -1,6 +1,29 @@
 # Quick Start Guide
 
-## 3-Step Setup
+## For First-Time Setup on Nebius
+
+### 1. Connect to Nebius
+```bash
+ssh root@login.slurm-XXXXX.backbone-XXXXX.msp.eu-north1.nebius.cloud -i ~/.ssh/id_ed25519
+```
+
+### 2. Clone Repository
+```bash
+cd /shared
+git clone https://github.com/smilenaderi/llm_fine_tune.git llm-fine-tune
+cd llm-fine-tune
+```
+
+### 3. Run Setup Script
+```bash
+bash scripts/setup_nebius.sh
+```
+
+The setup script will prompt you for Hugging Face authentication. This is **optional** - only needed for gated models. See [HUGGINGFACE_SETUP.md](HUGGINGFACE_SETUP.md) for details.
+
+---
+
+## For Training (After Setup)
 
 ### 1. Choose Your Configuration
 
@@ -54,6 +77,8 @@ python scripts/prepare_data.py
 sbatch scripts/submit_job.sh
 ```
 
+---
+
 ## Monitor Training
 
 ```bash
@@ -70,6 +95,8 @@ watch_gpu
 job_status
 ```
 
+---
+
 ## View Results
 
 ```bash
@@ -83,6 +110,8 @@ cat logs/validation_results.json
 python scripts/inference.py
 ```
 
+---
+
 ## Model Options
 
 | Model | Size | Time | Quality | Best For |
@@ -94,6 +123,8 @@ python scripts/inference.py
 
 See [MODEL_ALTERNATIVES.md](MODEL_ALTERNATIVES.md) for full list.
 
+---
+
 ## Dataset Options
 
 | Dataset | Size | Domain | Best For |
@@ -101,6 +132,8 @@ See [MODEL_ALTERNATIVES.md](MODEL_ALTERNATIVES.md) for full list.
 | xLAM 60k ⭐ | 60k | Function Calling | PoC |
 | Glaive v2 | 113k | Function Calling | Production |
 | Hermes v1 | 115k | Function Calling | Research |
+
+---
 
 ## Common Commands
 
@@ -116,7 +149,15 @@ source scripts/monitor.sh && clean_checkpoints
 
 # Cancel job
 scancel <JOB_ID>
+
+# Check job queue
+squeue --me
+
+# View logs
+ls -lh logs/
 ```
+
+---
 
 ## Troubleshooting
 
@@ -146,13 +187,34 @@ lora:
   r: 32  # Increase from 16
 ```
 
+**Environment not activated?**
+```bash
+source envs/llm-env/bin/activate
+```
+
+**Hugging Face authentication needed?**
+```bash
+huggingface-cli login
+```
+See [HUGGINGFACE_SETUP.md](HUGGINGFACE_SETUP.md) for details. Only required for gated models.
+
+**Check GPU availability:**
+```bash
+sinfo -N -l
+```
+
+---
+
 ## Documentation
 
 - **README.md** - Complete guide
 - **MODEL_ALTERNATIVES.md** - Model and dataset options
+- **SPLITS_EXPLAINED.md** - Understanding dataset splits
 - **STORAGE.md** - Storage configuration
 - **COMMANDS.md** - Command reference
 - **config.yaml** - Configuration file
+
+---
 
 ## Support
 
