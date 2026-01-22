@@ -22,12 +22,12 @@ cluster:
   # Number of compute nodes
   # PoC allocation: 1 node with 4x H200 GPUs
   # For larger training: increase to 2+ nodes
-  nodes: 1
+  nodes: 2
   
   # GPUs per node
   # PoC allocation: 4x H200 GPUs per node
   # Adjust based on your cluster configuration
-  gpus_per_node: 4
+  gpus_per_node: 2
   
   # SLURM partition name
   # Default: "main"

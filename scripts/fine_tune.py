@@ -249,6 +249,7 @@ def create_training_args(config):
         'report_to': logging_config.get('report_to', 'none'),
         'dataset_text_field': dataset_config.get('text_field', 'messages'),
         'packing': training_config.get('packing', False),
+        'max_length': training_config.get('max_seq_length', 2048),
     }
     
     # Add FSDP configuration if enabled
@@ -317,7 +318,6 @@ def main():
             peft_config=peft_config,
             processing_class=tokenizer,
             args=training_args,
-            max_seq_length=config.get('training.max_seq_length', 2048),
             callbacks=[BenchmarkCallback(config)] if config.get('benchmarking.enabled') else []
         )
         
