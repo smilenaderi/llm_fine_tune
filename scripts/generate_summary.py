@@ -66,6 +66,27 @@ def main():
     summary.append(f"📅 Completed: {timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
     summary.append("")
     
+    # Model Information
+    if 'model' in benchmark:
+        summary.append("🤖 MODEL")
+        summary.append("-" * 80)
+        model_info = benchmark['model']
+        summary.append(f"  Model:                {model_info.get('name', 'N/A')}")
+        summary.append(f"  LoRA Rank:            {model_info.get('lora_rank', 'N/A')}")
+        summary.append(f"  LoRA Alpha:           {model_info.get('lora_alpha', 'N/A')}")
+        summary.append("")
+    
+    # Dataset Information
+    if 'dataset' in benchmark:
+        summary.append("📚 DATASET")
+        summary.append("-" * 80)
+        dataset_info = benchmark['dataset']
+        summary.append(f"  Dataset:              {dataset_info.get('name', 'N/A')}")
+        summary.append(f"  Split:                {dataset_info.get('split', 'N/A')}")
+        max_samples = dataset_info.get('max_samples')
+        summary.append(f"  Max Samples:          {max_samples if max_samples else 'All'}")
+        summary.append("")
+    
     # Configuration
     summary.append("⚙️  CONFIGURATION")
     summary.append("-" * 80)

@@ -91,6 +91,16 @@ class BenchmarkCallback(TrainerCallback):
             'avg_time_per_step_seconds': self.metrics.get('avg_time_per_step', 0),
             'max_gpu_memory_gb': max(self.metrics['gpu_memory']) if self.metrics['gpu_memory'] else 0,
             'final_loss': final_loss,
+            'model': {
+                'name': self.config.get('model.model_id'),
+                'lora_rank': self.config.get('lora.r'),
+                'lora_alpha': self.config.get('lora.lora_alpha')
+            },
+            'dataset': {
+                'name': self.config.get('dataset.name'),
+                'max_samples': self.config.get('dataset.max_samples'),
+                'split': self.config.get('dataset.split')
+            },
             'config': {
                 'nodes': self.config.get('cluster.nodes'),
                 'gpus_per_node': self.config.get('cluster.gpus_per_node'),
