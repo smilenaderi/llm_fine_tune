@@ -1,0 +1,256 @@
+# LLM Fine-Tuning Configuration
+# Edit this file to customize your training setup
+
+# ============================================================================
+# CLUSTER CONFIGURATION
+# ============================================================================
+cluster:
+  nodes: 1                    # Number of compute nodes
+  gpus_per_node: 4           # GPUs per node (PoC: 4x H200)
+  partition: "main"          # SLURM partition name
+
+# ============================================================================
+# STORAGE CONFIGURATION
+# ============================================================================
+storage:
+  # Shared filesystem (2TB SSD) - for code, checkpoints, logs
+  shared_fs: "/shared/llm-fine-tune"
+  
+  # Network disk (2TB SSD) - for datasets and cache
+  network_disk: "/mnt/network-disk"
+  
+  # Paths (relative to shared_fs)
+  data_dir: "data"
+  checkpoint_dir: "checkpoints"
+  log_dir: "logs"
+  cache_dir: "cache"
+
+# ============================================================================
+# MODEL CONFIGURATION
+# ============================================================================
+model:
+  model_id: "Qwen/Qwen2.5-7B-Instruct"
+  torch_dtype: "bfloat16"
+  
+  # Flash Attention 2 (auto-detected for H100/H200)
+  use_flash_attention: true
+  
+  # Model cache location (uses network disk)
+  cache_dir: "${storage.network_disk}/model_cache"
+
+# ============================================================================
+# DATASET CONFIGURATION
+# ============================================================================
+dataset:
+  # Dataset source
+  name: "Beryex/xlam-function-calling-60k-sharegpt"
+  split: "train"
+  
+  # Number of samples to use (null = use all)
+  # PoC: 20000 for fast testing, 60000 for full dataset
+  max_samples: 20000
+  
+  # Streaming mode (memory efficient for large datasets)
+  streaming: true
+  
+  # Text field name in dataset
+  text_field: "messages"
+
+# ============================================================================
+# LORA CONFIGURATION
+# ============================================================================
+lora:
+  r: 16                      # LoRA rank (higher = more parameters)
+  lora_alpha: 32             # LoRA scaling factor
+  lora_dropout: 0.05         # Dropout for LoRA layers
+  bias: "none"               # Bias training: "none", "all", "lora_only"
+  
+  # Target modules for LoRA
+  target_modules:
+    - "q_proj"
+    - "k_proj"
+    - "v_proj"
+    - "o_proj"
+  
+  # Optional: Add more modules for better performance
+  # - "gate_proj"
+  # - "up_proj"
+  # - "down_proj"
+
+# ============================================================================
+# TRAINING CONFIGURATION
+# ============================================================================
+training:
+  # Training duration
+  num_train_epochs: 1
+  max_steps: -1              # -1 = use num_train_epochs
+  
+  # Batch size configuration
+  per_device_train_batch_size: 8
+  gradient_accumulation_steps: 4
+  # Effective batch size = per_device_batch_size × gradient_accumulation_steps × num_gpus
+  # Example: 8 × 4 × 4 = 128
+  
+  # Learning rate
+  learning_rate: 2.0e-4
+  lr_scheduler_type: "linear"
+  warmup_ratio: 0.03
+  
+  # Optimization
+  optim: "adamw_torch"
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+  
+  # Precision
+  bf16: true
+  fp16: false
+  
+  # Sequence length
+  max_seq_length: 2048
+  
+  # Packing (set to false for function calling to preserve conversation structure)
+  packing: false
+
+# ============================================================================
+# DISTRIBUTED TRAINING CONFIGURATION
+# ============================================================================
+distributed:
+  # Strategy: "ddp", "fsdp", or "deepspeed"
+  strategy: "fsdp"
+  
+  # FSDP Configuration (for multi-GPU training)
+  fsdp:
+    enabled: true
+    # Sharding strategy: "full_shard", "shard_grad_op", "no_shard"
+    sharding_strategy: "full_shard"
+    # Auto wrap policy
+    auto_wrap_policy: "transformer_based_wrap"
+    # Backward prefetch
+    backward_prefetch: "backward_pre"
+    # CPU offload (set to true if running out of GPU memory)
+    cpu_offload: false
+  
+  # DDP Configuration (fallback for single-node)
+  ddp:
+    find_unused_parameters: false
+    gradient_as_bucket_view: true
+
+# ============================================================================
+# CHECKPOINTING CONFIGURATION
+# ============================================================================
+checkpointing:
+  save_strategy: "steps"     # "steps", "epoch", "no"
+  save_steps: 25
+  save_total_limit: 3        # Keep only last N checkpoints
+  
+  # Resume from checkpoint
+  resume_from_checkpoint: true
+  
+  # Save optimizer and scheduler states
+  save_optimizer: true
+
+# ============================================================================
+# LOGGING & MONITORING CONFIGURATION
+# ============================================================================
+logging:
+  logging_steps: 1
+  report_to: "none"          # "none", "tensorboard", "wandb"
+  
+  # TensorBoard (optional)
+  tensorboard:
+    enabled: false
+    log_dir: "runs"
+  
+  # Weights & Biases (optional)
+  wandb:
+    enabled: false
+    project: "llm-fine-tune"
+    entity: null
+    run_name: null
+
+# ============================================================================
+# VALIDATION CONFIGURATION
+# ============================================================================
+validation:
+  enabled: true
+  
+  # Validation dataset (null = use split from training data)
+  dataset: null
+  validation_split: 0.05     # 5% of data for validation
+  
+  # Evaluation strategy
+  eval_strategy: "steps"     # "steps", "epoch", "no"
+  eval_steps: 25
+  
+  # Metrics to compute
+  metrics:
+    - "loss"
+    - "perplexity"
+    - "token_accuracy"
+
+# ============================================================================
+# PERFORMANCE BENCHMARKING
+# ============================================================================
+benchmarking:
+  enabled: true
+  
+  # Metrics to track
+  track_gpu_utilization: true
+  track_throughput: true
+  track_memory: true
+  
+  # Output file
+  output_file: "logs/benchmark_results.json"
+
+# ============================================================================
+# INFERENCE CONFIGURATION
+# ============================================================================
+inference:
+  # Test prompts for validation
+  test_prompts:
+    - role: "system"
+      content: "You are a helpful AI assistant with function calling capabilities."
+    - role: "user"
+      content: "Book a flight from New York to San Francisco on March 15th for 2 passengers."
+  
+  # Generation parameters
+  max_new_tokens: 256
+  temperature: 0.7
+  top_p: 0.9
+  do_sample: true
+
+# ============================================================================
+# HYPERPARAMETER TUNING GUIDE
+# ============================================================================
+# 
+# Learning Rate:
+#   - Start with 2e-4 for LoRA
+#   - Increase to 5e-4 for faster convergence (risk of instability)
+#   - Decrease to 1e-4 for more stable training
+#
+# LoRA Rank (r):
+#   - r=8: Faster, less memory, good for simple tasks
+#   - r=16: Balanced (recommended)
+#   - r=32: Better performance, more memory
+#   - r=64: Best performance, highest memory usage
+#
+# Batch Size:
+#   - Increase per_device_batch_size if you have GPU memory
+#   - Adjust gradient_accumulation_steps to maintain effective batch size
+#   - Effective batch size of 32-128 works well for most tasks
+#
+# Epochs:
+#   - 1 epoch: Quick PoC, may underfit
+#   - 2-3 epochs: Recommended for most tasks
+#   - 5+ epochs: Risk of overfitting, use with validation
+#
+# FSDP vs DDP:
+#   - Use FSDP for models >7B or when memory is tight
+#   - Use DDP for smaller models or single-node training
+#   - FSDP has slightly higher communication overhead
+#
+# Dataset Size:
+#   - 20k samples: ~15-30 min training (PoC)
+#   - 60k samples: ~45-90 min training (full dataset)
+#   - Scale linearly with more data
+#

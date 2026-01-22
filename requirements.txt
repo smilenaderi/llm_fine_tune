@@ -1,11 +1,14 @@
 # Core ML Libraries
-torch>=2.5.0
-transformers>=4.57.0
-datasets>=4.5.0
-peft>=0.13.0
-trl>=0.27.0
-accelerate>=1.2.0
-bitsandbytes>=0.45.0
+torch==2.5.1
+transformers==4.57.0
+datasets==4.5.0
+peft==0.13.2
+trl==0.27.0
+accelerate==1.2.1
+bitsandbytes==0.45.0
+
+# Configuration
+pyyaml==6.0.2
 
 # Optimization (H100/H200)
 flash-attn>=2.0.0

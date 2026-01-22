@@ -42,7 +42,7 @@ pip install packaging ninja wheel
 # 6. Install ML libraries
 echo ""
 echo "📚 Installing ML libraries..."
-pip install transformers datasets peft accelerate trl bitsandbytes
+pip install transformers datasets peft accelerate trl bitsandbytes pyyaml
 
 # 7. Install Flash Attention (H100/H200 optimization)
 echo ""
