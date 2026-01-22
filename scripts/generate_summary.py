@@ -31,11 +31,12 @@ def main():
         benchmark_files = glob.glob("logs/benchmark_results_*.json")
         if not benchmark_files:
             benchmark_file = "logs/benchmark_results.json"
+            validation_file = "logs/validation_results.json"
         else:
             benchmark_file = max(benchmark_files, key=os.path.getmtime)
             # Get corresponding validation file
-            job_id = benchmark_file.split('_')[-1].replace('.json', '')
-            validation_file = f"logs/validation_results_{job_id}.json"
+            job_id_from_file = benchmark_file.split('_')[-1].replace('.json', '')
+            validation_file = f"logs/validation_results_{job_id_from_file}.json"
     
     if not os.path.exists(benchmark_file):
         print("❌ No benchmark results found. Training may not have completed.")
