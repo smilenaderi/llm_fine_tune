@@ -9,10 +9,10 @@ if [ ! -f "config.yaml" ]; then
     exit 1
 fi
 
-# Read configuration from config.yaml
-NODES=$(python3 -c "import yaml; print(yaml.safe_load(open('config.yaml'))['cluster']['nodes'])")
-GPUS_PER_NODE=$(python3 -c "import yaml; print(yaml.safe_load(open('config.yaml'))['cluster']['gpus_per_node'])")
-PARTITION=$(python3 -c "import yaml; print(yaml.safe_load(open('config.yaml'))['cluster'].get('partition', 'main'))")
+# Read configuration from config.yaml using simple parsing
+NODES=$(grep "^  nodes:" config.yaml | head -1 | awk '{print $2}')
+GPUS_PER_NODE=$(grep "^  gpus_per_node:" config.yaml | head -1 | awk '{print $2}')
+PARTITION=$(grep "^  partition:" config.yaml | head -1 | awk '{print $2}' | tr -d '"')
 
 echo "=========================================="
 echo "Submitting LLM Fine-Tuning Job"
