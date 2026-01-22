@@ -1,13 +1,38 @@
 # LLM Fine-Tuning Configuration
 # Edit this file to customize your training setup
-
+#
+# QUICK START:
+#   1. Choose a model (see MODEL CONFIGURATION section)
+#   2. Choose a dataset (see DATASET CONFIGURATION section)
+#   3. Adjust training parameters (see TRAINING CONFIGURATION section)
+#   4. Run: python scripts/prepare_data.py && sbatch scripts/submit_job.sh
+#
+# CONFIGURATION PRESETS:
+#   See bottom of this file for ready-to-use presets
+#
+# DOCUMENTATION:
+#   - README.md: Complete usage guide
+#   - MODEL_ALTERNATIVES.md: Model and dataset options
+#   - QUICK_START.md: 3-step quick start
+#
 # ============================================================================
 # CLUSTER CONFIGURATION
 # ============================================================================
 cluster:
-  nodes: 1                    # Number of compute nodes
-  gpus_per_node: 4           # GPUs per node (PoC: 4x H200)
-  partition: "main"          # SLURM partition name
+  # Number of compute nodes
+  # PoC allocation: 1 node with 4x H200 GPUs
+  # For larger training: increase to 2+ nodes
+  nodes: 1
+  
+  # GPUs per node
+  # PoC allocation: 4x H200 GPUs per node
+  # Adjust based on your cluster configuration
+  gpus_per_node: 4
+  
+  # SLURM partition name
+  # Default: "main"
+  # Check available partitions: sinfo
+  partition: "main"
 
 # ============================================================================
 # STORAGE CONFIGURATION
@@ -81,6 +106,17 @@ dataset:
   #     - Messages format: {"messages": [{"role": "user/assistant", "content": "..."}]}
   
   name: "Beryex/xlam-function-calling-60k-sharegpt"
+  
+  # Dataset split to use
+  # Common options:
+  #   - "train": Training data (most common, use this for PoC)
+  #   - "validation" or "valid": Validation data (if available)
+  #   - "test": Test data (if available)
+  #   - "train[:80%]": First 80% of train split
+  #   - "train[80%:]": Last 20% of train split
+  #   - "train[:10000]": First 10,000 samples
+  #   - "train+validation": Combine multiple splits
+  # Note: Most datasets only have "train" split
   split: "train"
   
   # Number of samples to use (null = use all)
@@ -89,12 +125,18 @@ dataset:
   #   - 20,000: Fast PoC (~15-30 min)
   #   - 60,000: Full dataset (~45-90 min)
   #   - null: Use entire dataset
+  # Note: This applies AFTER split selection
   max_samples: 20000
   
   # Streaming mode (memory efficient for large datasets)
+  # Set to true for datasets >100k samples
   streaming: true
   
   # Text field name in dataset
+  # Common values:
+  #   - "messages": Standard messages format
+  #   - "conversations": ShareGPT format
+  #   - "text": Plain text format
   text_field: "messages"
 
 # ============================================================================
@@ -212,18 +254,71 @@ logging:
 # ============================================================================
 # VALIDATION CONFIGURATION
 # ============================================================================
+# UNDERSTANDING SPLITS AND VALIDATION:
+#
+# Dataset Split (above):
+#   - Selects which portion of the HuggingFace dataset to load
+#   - Example: split: "train" loads the training portion
+#   - Most datasets only have a "train" split
+#
+# Validation Split (below):
+#   - Further divides the loaded data into train/validation
+#   - Example: validation_split: 0.05 reserves 5% for validation
+#   - This happens AFTER loading the dataset split
+#
+# EXAMPLE WORKFLOW:
+#   1. Load dataset with split: "train" (60,000 samples)
+#   2. Apply max_samples: 20000 (reduces to 20,000 samples)
+#   3. Apply validation_split: 0.05 (splits into 19,000 train + 1,000 validation)
+#
+# WHEN TO USE VALIDATION:
+#   - Always recommended for production training
+#   - Helps detect overfitting
+#   - Can disable for quick PoC tests
+#
 validation:
+  # Enable validation during training
+  # When enabled, a portion of training data is reserved for validation
   enabled: true
   
   # Validation dataset (null = use split from training data)
+  # Options:
+  #   - null: Automatically split from training data (recommended)
+  #   - "dataset_name": Use a different dataset for validation
+  # Example: dataset: "Beryex/xlam-function-calling-60k-sharegpt"
   dataset: null
-  validation_split: 0.05     # 5% of data for validation
+  
+  # Validation split percentage (only used if dataset is null)
+  # This reserves a portion of training data for validation
+  # Recommendations:
+  #   - 0.05 (5%): Standard for large datasets
+  #   - 0.10 (10%): Better for smaller datasets
+  #   - 0.15 (15%): Maximum recommended
+  # Example: With 20k samples and 0.05 split:
+  #   - Training: 19,000 samples
+  #   - Validation: 1,000 samples
+  validation_split: 0.05
   
   # Evaluation strategy
-  eval_strategy: "steps"     # "steps", "epoch", "no"
+  # Options:
+  #   - "steps": Evaluate every N steps (recommended)
+  #   - "epoch": Evaluate at end of each epoch
+  #   - "no": Disable evaluation
+  eval_strategy: "steps"
+  
+  # Evaluation frequency (number of steps between evaluations)
+  # Should match or be multiple of save_steps
+  # Recommendations:
+  #   - 25: Frequent evaluation (matches default save_steps)
+  #   - 50: Less frequent, faster training
+  #   - 100: Minimal evaluation overhead
   eval_steps: 25
   
-  # Metrics to compute
+  # Metrics to compute during validation
+  # Available metrics:
+  #   - "loss": Validation loss (always computed)
+  #   - "perplexity": Language model perplexity
+  #   - "token_accuracy": Token-level accuracy
   metrics:
     - "loss"
     - "perplexity"
