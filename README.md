@@ -28,18 +28,12 @@ lora:
   lora_alpha: 32
 ```
 
-3. **Prepare Data**
+3. **Train**
 ```bash
-source envs/llm-env/bin/activate
-python scripts/prepare_data.py
+bash scripts/submit_job.sh
 ```
 
-4. **Train**
-```bash
-sbatch scripts/submit_job.sh
-```
-
-5. **Monitor**
+4. **Monitor**
 ```bash
 source scripts/monitor.sh
 watch_latest  # View logs
@@ -61,7 +55,8 @@ watch_gpu     # GPU usage
 3. Connect: `ssh root@login.slurm-XXXXX...`
 4. Clone repo: `git clone https://github.com/smilenaderi/llm_fine_tune.git /shared/llm-fine-tune`
 5. Run setup: `bash scripts/setup_nebius.sh`
-6. Follow Quick Start steps above
+6. Edit `config.yaml` to customize settings
+7. Submit job: `bash scripts/submit_job.sh`
 
 ## Performance (4x H200)
 
