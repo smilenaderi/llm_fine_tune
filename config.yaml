@@ -89,7 +89,6 @@ dataset:
   # Options (sorted by size):
   #
   #   Small datasets (fast training, good for PoC):
-  #     - "Beryex/xlam-function-calling-60k-sharegpt"  # 60k samples, recommended
   #     - "glaiveai/glaive-function-calling-v2"        # 113k samples, high quality
   #     - "NousResearch/hermes-function-calling-v1"    # 115k samples
   #
@@ -105,7 +104,7 @@ dataset:
   #     - ShareGPT format: {"conversations": [{"from": "human/gpt", "value": "..."}]}
   #     - Messages format: {"messages": [{"role": "user/assistant", "content": "..."}]}
   
-  name: "Beryex/xlam-function-calling-60k-sharegpt"
+  name: "glaiveai/glaive-function-calling-v2"
   
   # Dataset split to use
   # Common options:
@@ -137,7 +136,8 @@ dataset:
   #   - "messages": Standard messages format
   #   - "conversations": ShareGPT format
   #   - "text": Plain text format
-  text_field: "messages"
+  #   - "chat": Glaive format
+  text_field: "chat"
 
 # ============================================================================
 # LORA CONFIGURATION
