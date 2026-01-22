@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --job-name=llm-finetune
 #SBATCH --partition=main
-#SBATCH --nodes=1
-#SBATCH --gpus-per-node=4
+#SBATCH --nodes=2
+#SBATCH --gpus-per-node=2
 #SBATCH --output=logs/train_%j.out
 #SBATCH --error=logs/train_%j.err
 #SBATCH --time=04:00:00
