@@ -38,6 +38,7 @@ echo "=========================================="
 echo "Setting up environment..."
 source envs/llm-env/bin/activate
 export OMP_NUM_THREADS=1
+export HF_HUB_DISABLE_TORCH_LOAD_SECURITY_CHECK=1
 
 # 2. Load configuration
 echo "Loading configuration from config.yaml..."
