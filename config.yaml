@@ -29,7 +29,25 @@ storage:
 # MODEL CONFIGURATION
 # ============================================================================
 model:
+  # Base model to fine-tune
+  # Options (sorted by size):
+  #   Small (1-3B params, ~6-12GB VRAM, fast training):
+  #     - "Qwen/Qwen2.5-1.5B-Instruct"      # 1.5B params, excellent for PoC
+  #     - "microsoft/Phi-3-mini-4k-instruct" # 3.8B params, high quality
+  #     - "google/gemma-2-2b-it"            # 2B params, Google's model
+  #
+  #   Medium (7-8B params, ~16-32GB VRAM, balanced):
+  #     - "Qwen/Qwen2.5-7B-Instruct"        # 7B params, recommended
+  #     - "meta-llama/Llama-3.1-8B-Instruct" # 8B params, requires HF auth
+  #     - "mistralai/Mistral-7B-Instruct-v0.3" # 7B params, requires HF auth
+  #
+  #   Large (14-70B params, ~32-80GB VRAM, best quality):
+  #     - "Qwen/Qwen2.5-14B-Instruct"       # 14B params, high quality
+  #     - "meta-llama/Llama-3.1-70B-Instruct" # 70B params, requires multi-GPU
+  #     - "mistralai/Mixtral-8x7B-Instruct-v0.1" # 47B params, MoE architecture
+  
   model_id: "Qwen/Qwen2.5-7B-Instruct"
+  
   torch_dtype: "bfloat16"
   
   # Flash Attention 2 (auto-detected for H100/H200)
@@ -42,12 +60,35 @@ model:
 # DATASET CONFIGURATION
 # ============================================================================
 dataset:
-  # Dataset source
+  # Dataset source for function calling
+  # Options (sorted by size):
+  #
+  #   Small datasets (fast training, good for PoC):
+  #     - "Beryex/xlam-function-calling-60k-sharegpt"  # 60k samples, recommended
+  #     - "glaiveai/glaive-function-calling-v2"        # 113k samples, high quality
+  #     - "NousResearch/hermes-function-calling-v1"    # 115k samples
+  #
+  #   Medium datasets (balanced):
+  #     - "Salesforce/xlam-function-calling-60k"       # 60k samples, original
+  #     - "teknium/GPTeacher-General-Instruct"         # 50k samples, general purpose
+  #
+  #   Large datasets (comprehensive training):
+  #     - "Open-Orca/OpenOrca"                         # 4.2M samples, very large
+  #     - "HuggingFaceH4/ultrachat_200k"              # 200k samples, chat focused
+  #
+  #   Custom format notes:
+  #     - ShareGPT format: {"conversations": [{"from": "human/gpt", "value": "..."}]}
+  #     - Messages format: {"messages": [{"role": "user/assistant", "content": "..."}]}
+  
   name: "Beryex/xlam-function-calling-60k-sharegpt"
   split: "train"
   
   # Number of samples to use (null = use all)
-  # PoC: 20000 for fast testing, 60000 for full dataset
+  # Recommendations:
+  #   - 5,000-10,000: Quick PoC test (~5-15 min)
+  #   - 20,000: Fast PoC (~15-30 min)
+  #   - 60,000: Full dataset (~45-90 min)
+  #   - null: Use entire dataset
   max_samples: 20000
   
   # Streaming mode (memory efficient for large datasets)
@@ -253,4 +294,69 @@ inference:
 #   - 20k samples: ~15-30 min training (PoC)
 #   - 60k samples: ~45-90 min training (full dataset)
 #   - Scale linearly with more data
+#
+# ============================================================================
+# QUICK CONFIGURATION PRESETS
+# ============================================================================
+#
+# PRESET 1: Fast PoC (5-15 minutes)
+# ----------------------------------
+# model:
+#   model_id: "Qwen/Qwen2.5-1.5B-Instruct"
+# dataset:
+#   max_samples: 10000
+# training:
+#   num_train_epochs: 1
+#   per_device_train_batch_size: 16
+# lora:
+#   r: 8
+#
+# PRESET 2: Balanced PoC (15-30 minutes)
+# ---------------------------------------
+# model:
+#   model_id: "Qwen/Qwen2.5-7B-Instruct"
+# dataset:
+#   max_samples: 20000
+# training:
+#   num_train_epochs: 1
+#   per_device_train_batch_size: 8
+# lora:
+#   r: 16
+#
+# PRESET 3: Production Quality (2-4 hours)
+# -----------------------------------------
+# model:
+#   model_id: "Qwen/Qwen2.5-7B-Instruct"
+# dataset:
+#   max_samples: 60000
+# training:
+#   num_train_epochs: 3
+#   per_device_train_batch_size: 8
+# lora:
+#   r: 32
+#
+# PRESET 4: High Quality (4-8 hours)
+# -----------------------------------
+# model:
+#   model_id: "Qwen/Qwen2.5-14B-Instruct"
+# dataset:
+#   max_samples: null  # Use all data
+# training:
+#   num_train_epochs: 3
+#   per_device_train_batch_size: 4
+# lora:
+#   r: 32
+#
+# PRESET 5: Memory Constrained
+# -----------------------------
+# model:
+#   model_id: "Qwen/Qwen2.5-7B-Instruct"
+# training:
+#   per_device_train_batch_size: 4
+#   gradient_accumulation_steps: 8
+# lora:
+#   r: 8
+# distributed:
+#   fsdp:
+#     cpu_offload: true
 #
