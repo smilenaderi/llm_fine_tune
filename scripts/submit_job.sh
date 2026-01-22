@@ -1,19 +1,37 @@
 #!/bin/bash
-#SBATCH --job-name=llm-finetune
-#SBATCH --partition=main
-#SBATCH --nodes=2
-#SBATCH --gpus-per-node=2
-#SBATCH --output=logs/train_%j.out
-#SBATCH --error=logs/train_%j.err
-#SBATCH --time=04:00:00
 
-# This script reads configuration from config.yaml
+# This script reads configuration from config.yaml and submits the job
 # To customize: edit config.yaml instead of this file
+
+# Check if config.yaml exists
+if [ ! -f "config.yaml" ]; then
+    echo "❌ Error: config.yaml not found"
+    exit 1
+fi
+
+# Read configuration from config.yaml
+NODES=$(python3 -c "import yaml; print(yaml.safe_load(open('config.yaml'))['cluster']['nodes'])")
+GPUS_PER_NODE=$(python3 -c "import yaml; print(yaml.safe_load(open('config.yaml'))['cluster']['gpus_per_node'])")
+PARTITION=$(python3 -c "import yaml; print(yaml.safe_load(open('config.yaml'))['cluster'].get('partition', 'main'))")
+
+echo "=========================================="
+echo "Submitting LLM Fine-Tuning Job"
+echo "=========================================="
+echo "Configuration from config.yaml:"
+echo "  Nodes: $NODES"
+echo "  GPUs per node: $GPUS_PER_NODE"
+echo "  Total GPUs: $((NODES * GPUS_PER_NODE))"
+echo "  Partition: $PARTITION"
+echo "=========================================="
+
+# Create the actual job script
+cat > /tmp/llm_finetune_job_$$.sh << 'EOFSCRIPT'
+#!/bin/bash
 
 echo "=========================================="
 echo "LLM Fine-Tuning Job Started"
 echo "Job ID: $SLURM_JOB_ID"
-echo "Node: $SLURM_NODELIST"
+echo "Nodes: $SLURM_NODELIST"
 echo "=========================================="
 
 # 1. Environment Setup
@@ -74,3 +92,18 @@ fi
 echo "=========================================="
 echo "Job completed at $(date)"
 echo "=========================================="
+EOFSCRIPT
+
+# Submit the job with dynamic parameters
+sbatch \
+    --job-name=llm-finetune \
+    --partition=$PARTITION \
+    --nodes=$NODES \
+    --gpus-per-node=$GPUS_PER_NODE \
+    --output=logs/train_%j.out \
+    --error=logs/train_%j.err \
+    --time=04:00:00 \
+    /tmp/llm_finetune_job_$$.sh
+
+# Clean up temp file after a delay (in background)
+(sleep 5 && rm -f /tmp/llm_finetune_job_$$.sh) &
