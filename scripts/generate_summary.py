@@ -18,9 +18,24 @@ def format_time(seconds):
         return f"{hours:.2f}h"
 
 def main():
+    # Get job ID from environment or find latest
+    job_id = os.environ.get('SLURM_JOB_ID', None)
+    
     # Load benchmark results
-    benchmark_file = "logs/benchmark_results.json"
-    validation_file = "logs/validation_results.json"
+    if job_id:
+        benchmark_file = f"logs/benchmark_results_{job_id}.json"
+        validation_file = f"logs/validation_results_{job_id}.json"
+    else:
+        # Find the latest benchmark file
+        import glob
+        benchmark_files = glob.glob("logs/benchmark_results_*.json")
+        if not benchmark_files:
+            benchmark_file = "logs/benchmark_results.json"
+        else:
+            benchmark_file = max(benchmark_files, key=os.path.getmtime)
+            # Get corresponding validation file
+            job_id = benchmark_file.split('_')[-1].replace('.json', '')
+            validation_file = f"logs/validation_results_{job_id}.json"
     
     if not os.path.exists(benchmark_file):
         print("❌ No benchmark results found. Training may not have completed.")
@@ -40,6 +55,10 @@ def main():
     summary.append("🎯 LLM FINE-TUNING SUMMARY REPORT")
     summary.append("=" * 80)
     summary.append("")
+    
+    # Job ID
+    if 'job_id' in benchmark:
+        summary.append(f"🆔 Job ID: {benchmark['job_id']}")
     
     # Timestamp
     timestamp = datetime.fromisoformat(benchmark['timestamp'])
@@ -132,7 +151,8 @@ def main():
     print(report)
     
     # Save to file
-    output_file = "logs/training_summary.txt"
+    job_suffix = f"_{benchmark.get('job_id', 'latest')}" if 'job_id' in benchmark else ""
+    output_file = f"logs/training_summary{job_suffix}.txt"
     with open(output_file, 'w') as f:
         f.write(report)
     

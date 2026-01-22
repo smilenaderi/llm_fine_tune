@@ -63,15 +63,34 @@ class BenchmarkCallback(TrainerCallback):
     
     def _save_benchmark_results(self, state):
         """Save benchmark results to file"""
+        # Get job ID from environment
+        job_id = os.environ.get('SLURM_JOB_ID', 'local')
         benchmark_file = self.config.get('benchmarking.output_file')
         
+        # Add job ID to filename
+        base_name = os.path.splitext(benchmark_file)[0]
+        ext = os.path.splitext(benchmark_file)[1]
+        benchmark_file = f"{base_name}_{job_id}{ext}"
+        
+        # Get final loss from train_loss in the last log entry
+        final_loss = 0
+        if state.log_history:
+            # Look for train_loss in the last entries
+            for log in reversed(state.log_history):
+                if 'train_loss' in log:
+                    final_loss = log['train_loss']
+                    break
+                elif 'loss' in log:
+                    final_loss = log['loss']
+        
         results = {
+            'job_id': job_id,
             'timestamp': datetime.now().isoformat(),
             'total_training_time_seconds': self.metrics['training_time'],
             'total_steps': state.global_step,
             'avg_time_per_step_seconds': self.metrics.get('avg_time_per_step', 0),
             'max_gpu_memory_gb': max(self.metrics['gpu_memory']) if self.metrics['gpu_memory'] else 0,
-            'final_loss': state.log_history[-1].get('loss', 0) if state.log_history else 0,
+            'final_loss': final_loss,
             'config': {
                 'nodes': self.config.get('cluster.nodes'),
                 'gpus_per_node': self.config.get('cluster.gpus_per_node'),

@@ -211,10 +211,12 @@ def run_validation(model, tokenizer, config):
     
     # Save results
     storage_config = config.get_storage_config()
-    results_file = os.path.join(storage_config['log_dir'], 'validation_results.json')
+    job_id = os.environ.get('SLURM_JOB_ID', 'local')
+    results_file = os.path.join(storage_config['log_dir'], f'validation_results_{job_id}.json')
     
     with open(results_file, 'w') as f:
         json.dump({
+            'job_id': job_id,
             'average_score': avg_score,
             'total_tests': len(TEST_CASES),
             'results': results
