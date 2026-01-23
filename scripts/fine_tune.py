@@ -108,6 +108,10 @@ class BenchmarkCallback(TrainerCallback):
         if logs is None:
             return
         
+        # Only log from main process to avoid duplicates
+        if not state.is_world_process_zero:
+            return
+        
         current_time = time.time()
         
         # Calculate throughput (steps per second)
@@ -169,6 +173,13 @@ class BenchmarkCallback(TrainerCallback):
         
         # Add elapsed time
         logs['performance/elapsed_time_minutes'] = (current_time - self.start_time) / 60
+        
+        # Debug: Log what we're adding (only first time)
+        if state.global_step == args.logging_steps:
+            logger.info(f"📊 Logging {len([k for k in logs.keys() if '/' in k])} custom metrics to TensorBoard")
+        
+        # Note: The logs dict is automatically written to TensorBoard by the Trainer
+        # All keys with '/' will be grouped in TensorBoard UI
     
     def on_step_end(self, args, state, control, **kwargs):
         step_time = time.time()
