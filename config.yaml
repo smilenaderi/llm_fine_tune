@@ -1,48 +1,20 @@
 # LLM Fine-Tuning Configuration
-# Edit this file to customize your training setup
-#
-# QUICK START:
-#   1. Choose a model (see MODEL CONFIGURATION section)
-#   2. Choose a dataset (see DATASET CONFIGURATION section)
-#   3. Adjust training parameters (see TRAINING CONFIGURATION section)
-#   4. Run: python scripts/prepare_data.py && sbatch scripts/submit_job.sh
-#
-# CONFIGURATION PRESETS:
-#   See bottom of this file for ready-to-use presets
-#
-# DOCUMENTATION:
-#   - README.md: Complete usage guide
-#   - MODEL_ALTERNATIVES.md: Model and dataset options
-#   - QUICK_START.md: 3-step quick start
-#
+# See QUICK_START.md for usage guide and presets at bottom of file
+
 # ============================================================================
 # CLUSTER CONFIGURATION
 # ============================================================================
 cluster:
-  # Number of compute nodes
-  # PoC allocation: 1 node with 4x H200 GPUs
-  # For larger training: increase to 2+ nodes
-  nodes: 2
-  
-  # GPUs per node
-  # PoC allocation: 4x H200 GPUs per node
-  # Adjust based on your cluster configuration
-  gpus_per_node: 2
-  
-  # SLURM partition name
-  # Default: "main"
-  # Check available partitions: sinfo
-  partition: "main"
+  nodes: 2                   # Number of compute nodes
+  gpus_per_node: 2           # GPUs per node (4x H200 in PoC allocation)
+  partition: "main"          # SLURM partition (check with: sinfo)
 
 # ============================================================================
 # STORAGE CONFIGURATION
 # ============================================================================
 storage:
-  # Shared filesystem (2TB SSD) - for code, checkpoints, logs
-  shared_fs: "/shared/llm-fine-tune"
-  
-  # Network disk (2TB SSD) - for datasets and cache
-  network_disk: "/mnt/network-disk"
+  shared_fs: "/shared/llm-fine-tune"      # Shared filesystem (2TB SSD)
+  network_disk: "/mnt/network-disk"       # Network disk (2TB SSD)
   
   # Paths (relative to shared_fs)
   data_dir: "data"
@@ -55,30 +27,13 @@ storage:
 # ============================================================================
 model:
   # Base model to fine-tune
-  # Options (sorted by size):
-  #   Small (1-3B params, ~6-12GB VRAM, fast training):
-  #     - "Qwen/Qwen2.5-1.5B-Instruct"      # 1.5B params, excellent for PoC
-  #     - "microsoft/Phi-3-mini-4k-instruct" # 3.8B params, high quality
-  #     - "google/gemma-2-2b-it"            # 2B params, Google's model
-  #
-  #   Medium (7-8B params, ~16-32GB VRAM, balanced):
-  #     - "Qwen/Qwen2.5-7B-Instruct"        # 7B params, recommended
-  #     - "meta-llama/Llama-3.1-8B-Instruct" # 8B params, requires HF auth
-  #     - "mistralai/Mistral-7B-Instruct-v0.3" # 7B params, requires HF auth
-  #
-  #   Large (14-70B params, ~32-80GB VRAM, best quality):
-  #     - "Qwen/Qwen2.5-14B-Instruct"       # 14B params, high quality
-  #     - "meta-llama/Llama-3.1-70B-Instruct" # 70B params, requires multi-GPU
-  #     - "mistralai/Mixtral-8x7B-Instruct-v0.1" # 47B params, MoE architecture
-  
+  # Small (1-3B): Qwen/Qwen2.5-1.5B-Instruct, microsoft/Phi-3-mini-4k-instruct
+  # Medium (7-8B): Qwen/Qwen2.5-7B-Instruct, meta-llama/Llama-3.1-8B-Instruct
+  # Large (14-70B): Qwen/Qwen2.5-14B-Instruct, meta-llama/Llama-3.1-70B-Instruct
   model_id: "Qwen/Qwen2.5-7B-Instruct"
   
   torch_dtype: "bfloat16"
-  
-  # Flash Attention 2 (auto-detected for H100/H200)
-  use_flash_attention: true
-  
-  # Model cache location (uses network disk)
+  use_flash_attention: true  # Auto-detected for H100/H200
   cache_dir: "${storage.network_disk}/model_cache"
 
 # ============================================================================
@@ -86,336 +41,111 @@ model:
 # ============================================================================
 dataset:
   # Dataset source for function calling
-  # Options (sorted by size):
-  #
-  #   Small datasets (fast training, good for PoC):
-  #     - "glaiveai/glaive-function-calling-v2"        # 113k samples, high quality
-  #     - "NousResearch/hermes-function-calling-v1"    # 115k samples
-  #
-  #   Medium datasets (balanced):
-  #     - "Salesforce/xlam-function-calling-60k"       # 60k samples, original
-  #     - "teknium/GPTeacher-General-Instruct"         # 50k samples, general purpose
-  #
-  #   Large datasets (comprehensive training):
-  #     - "Open-Orca/OpenOrca"                         # 4.2M samples, very large
-  #     - "HuggingFaceH4/ultrachat_200k"              # 200k samples, chat focused
-  #
-  #   Custom format notes:
-  #     - ShareGPT format: {"conversations": [{"from": "human/gpt", "value": "..."}]}
-  #     - Messages format: {"messages": [{"role": "user/assistant", "content": "..."}]}
-  
+  # Options: glaiveai/glaive-function-calling-v2 (113k), 
+  #          Salesforce/xlam-function-calling-60k (60k),
+  #          NousResearch/hermes-function-calling-v1 (115k)
   name: "glaiveai/glaive-function-calling-v2"
   
-  # Dataset split to use
-  # Common options:
-  #   - "train": Training data (most common, use this for PoC)
-  #   - "validation" or "valid": Validation data (if available)
-  #   - "test": Test data (if available)
-  #   - "train[:80%]": First 80% of train split
-  #   - "train[80%:]": Last 20% of train split
-  #   - "train[:10000]": First 10,000 samples
-  #   - "train+validation": Combine multiple splits
-  # Note: Most datasets only have "train" split
-  split: "train"
-  
-  # Number of samples to use (null = use all)
-  # Recommendations:
-  #   - 5,000-10,000: Quick PoC test (~5-15 min)
-  #   - 20,000: Fast PoC (~15-30 min)
-  #   - 60,000: Full dataset (~45-90 min)
-  #   - null: Use entire dataset
-  # Note: This applies AFTER split selection
-  max_samples: 1000
-  
-  # Streaming mode (memory efficient for large datasets)
-  # Set to true for datasets >100k samples
-  streaming: true
-  
-  # Text field name in dataset
-  # Common values:
-  #   - "messages": Standard messages format
-  #   - "conversations": ShareGPT format
-  #   - "text": Plain text format
-  #   - "chat": Glaive format
-  text_field: "chat"
+  split: "train"             # Dataset split to use
+  max_samples: 1000          # Number of samples (null = use all)
+  streaming: true            # Memory efficient for large datasets
+  text_field: "chat"         # Text field name in dataset
 
 # ============================================================================
 # LORA CONFIGURATION
 # ============================================================================
 lora:
-  r: 16                      # LoRA rank (higher = more parameters)
+  r: 16                      # LoRA rank (8=fast, 16=balanced, 32=quality)
   lora_alpha: 32             # LoRA scaling factor
   lora_dropout: 0.05         # Dropout for LoRA layers
   bias: "none"               # Bias training: "none", "all", "lora_only"
   
-  # Target modules for LoRA
-  target_modules:
+  target_modules:            # Target modules for LoRA
     - "q_proj"
     - "k_proj"
     - "v_proj"
     - "o_proj"
-  
-  # Optional: Add more modules for better performance
-  # - "gate_proj"
-  # - "up_proj"
-  # - "down_proj"
 
 # ============================================================================
 # TRAINING CONFIGURATION
 # ============================================================================
 training:
-  # Training duration
   num_train_epochs: 1
-  max_steps: -1              # -1 = use num_train_epochs, >0 = train for N steps
+  max_steps: -1              # -1 = use num_train_epochs
   
-  # Batch size configuration
+  # Batch size (effective = per_device × gradient_accum × num_gpus)
   per_device_train_batch_size: 8
   gradient_accumulation_steps: 4
-  # Effective batch size = per_device_batch_size × gradient_accumulation_steps × num_gpus
-  # Example: 8 × 4 × 4 = 128
   
-  # Learning rate
   learning_rate: 2.0e-4
+  lr_scheduler_type: "linear"  # Options: linear, cosine, constant
+  warmup_ratio: 0.03           # Fraction of training for warmup
   
-  # Learning rate scheduler
-  # Options:
-  #   - "linear": Linear decay (recommended)
-  #   - "cosine": Cosine annealing
-  #   - "constant": No decay
-  #   - "constant_with_warmup": Constant after warmup
-  #   - "polynomial": Polynomial decay
-  lr_scheduler_type: "linear"
-  
-  # Warmup ratio (fraction of training for warmup)
-  # Recommendations:
-  #   - 0.03 (3%): Standard for most tasks
-  #   - 0.05 (5%): More warmup for stability
-  #   - 0.10 (10%): Maximum recommended
-  warmup_ratio: 0.03
-  
-  # Optimizer
-  # Options:
-  #   - "adamw_torch": PyTorch AdamW (recommended)
-  #   - "adamw_hf": HuggingFace AdamW
-  #   - "sgd": Stochastic Gradient Descent
-  #   - "adafactor": Memory-efficient optimizer
   optim: "adamw_torch"
-  
-  # Weight decay (L2 regularization)
   weight_decay: 0.01
-  
-  # Gradient clipping (prevents exploding gradients)
   max_grad_norm: 1.0
   
   # Precision
-  bf16: true                 # Use bfloat16 (recommended for H100/H200)
-  fp16: false                # Use float16 (alternative for older GPUs)
+  bf16: true
+  fp16: false
   
-  # Sequence length
-  # Maximum sequence length for training
-  # Recommendations:
-  #   - 512: Fast, good for short texts
-  #   - 1024: Balanced
-  #   - 2048: Standard for most tasks (recommended)
-  #   - 4096: Long context, slower training
   max_seq_length: 2048
-  
-  # Packing (set to false for function calling to preserve conversation structure)
-  # When true, multiple short sequences are packed into one to reduce padding
-  # When false, each conversation is kept separate (better for function calling)
-  packing: false
+  packing: false             # Keep false for function calling
 
 # ============================================================================
 # DISTRIBUTED TRAINING CONFIGURATION
 # ============================================================================
 distributed:
-  # Strategy: "ddp", "fsdp", or "deepspeed"
-  # Options:
-  #   - "fsdp": Fully Sharded Data Parallel (recommended for multi-GPU)
-  #     * Shards model across GPUs to save memory
-  #     * Best for models >7B or when memory is tight
-  #     * Slightly higher communication overhead
-  #   - "ddp": Distributed Data Parallel
-  #     * Replicates model on each GPU
-  #     * Best for smaller models or single-node training
-  #     * Lower communication overhead
-  #   - "deepspeed": DeepSpeed (advanced, requires additional setup)
-  #     * Most memory efficient
-  #     * Requires deepspeed library
-  strategy: "fsdp"
+  strategy: "fsdp"           # Options: fsdp (multi-GPU), ddp (single-node)
   
-  # FSDP Configuration (for multi-GPU training)
   fsdp:
     enabled: true
-    
-    # Sharding strategy
-    # Options:
-    #   - "full_shard": Shard parameters, gradients, and optimizer states (most memory efficient)
-    #   - "shard_grad_op": Shard gradients and optimizer states only
-    #   - "no_shard": No sharding (equivalent to DDP)
-    sharding_strategy: "full_shard"
-    
-    # Auto wrap policy
-    # Options:
-    #   - "transformer_based_wrap": Wrap transformer layers (recommended)
-    #   - "size_based_wrap": Wrap based on parameter count
+    sharding_strategy: "full_shard"        # full_shard, shard_grad_op, no_shard
     auto_wrap_policy: "transformer_based_wrap"
-    
-    # Backward prefetch
-    # Options:
-    #   - "backward_pre": Prefetch next layer during backward (recommended)
-    #   - "backward_post": Prefetch after backward
-    #   - null: No prefetching
     backward_prefetch: "backward_pre"
-    
-    # CPU offload (use if running out of GPU memory)
-    # When true, offloads parameters to CPU when not in use
-    # Trades speed for memory
-    cpu_offload: false
+    cpu_offload: false       # Enable if running out of GPU memory
   
-  # DDP Configuration (fallback for single-node)
   ddp:
-    # Find unused parameters (set to false for better performance)
     find_unused_parameters: false
-    
-    # Gradient as bucket view (memory optimization)
     gradient_as_bucket_view: true
 
 # ============================================================================
 # CHECKPOINTING CONFIGURATION
 # ============================================================================
 checkpointing:
-  # Save strategy
-  # Options:
-  #   - "steps": Save every N steps (recommended)
-  #   - "epoch": Save at end of each epoch
-  #   - "no": Don't save checkpoints (not recommended)
-  save_strategy: "steps"
-  
-  # Save frequency (number of steps between saves)
-  # Recommendations:
-  #   - 25: Frequent saves, good for debugging
-  #   - 50: Balanced
-  #   - 100: Less frequent, faster training
-  save_steps: 25
-  
-  # Maximum number of checkpoints to keep
-  # Older checkpoints are automatically deleted
-  # Recommendations:
-  #   - 2: Minimal disk usage
-  #   - 3: Balanced (recommended)
-  #   - 5: Keep more history
-  #   - null: Keep all checkpoints (not recommended)
-  save_total_limit: 3
-  
-  # Resume from checkpoint
-  # When true, automatically resumes from last checkpoint if available
+  save_strategy: "steps"     # Options: steps, epoch, no
+  save_steps: 25             # Save frequency
+  save_total_limit: 3        # Max checkpoints to keep (null = keep all)
   resume_from_checkpoint: true
-  
-  # Save optimizer and scheduler states
-  # When true, can resume training exactly where it left off
-  # When false, saves disk space but loses optimizer state
-  save_optimizer: true
+  save_optimizer: true       # Save optimizer state for exact resumption
 
 # ============================================================================
 # LOGGING & MONITORING CONFIGURATION
 # ============================================================================
 logging:
-  # Logging frequency (number of steps between log entries)
-  # Recommendations:
-  #   - 1: Log every step (detailed, recommended for PoC)
-  #   - 5: Less verbose
-  #   - 10: Minimal logging
-  logging_steps: 1
+  logging_steps: 1           # Log frequency
+  report_to: "none"          # Options: none, tensorboard, wandb, all
   
-  # Reporting destination
-  # Options:
-  #   - "none": No external reporting (logs to file only)
-  #   - "tensorboard": Log to TensorBoard
-  #   - "wandb": Log to Weights & Biases
-  #   - "all": Log to all available platforms
-  report_to: "none"
-  
-  # TensorBoard (optional)
   tensorboard:
     enabled: false
     log_dir: "runs"
   
-  # Weights & Biases (optional)
   wandb:
     enabled: false
     project: "llm-fine-tune"
-    entity: null               # Your W&B username/team
-    run_name: null             # Auto-generated if null
+    entity: null
+    run_name: null
 
 # ============================================================================
 # VALIDATION CONFIGURATION
 # ============================================================================
-# UNDERSTANDING SPLITS AND VALIDATION:
-#
-# Dataset Split (above):
-#   - Selects which portion of the HuggingFace dataset to load
-#   - Example: split: "train" loads the training portion
-#   - Most datasets only have a "train" split
-#
-# Validation Split (below):
-#   - Further divides the loaded data into train/validation
-#   - Example: validation_split: 0.05 reserves 5% for validation
-#   - This happens AFTER loading the dataset split
-#
-# EXAMPLE WORKFLOW:
-#   1. Load dataset with split: "train" (60,000 samples)
-#   2. Apply max_samples: 20000 (reduces to 20,000 samples)
-#   3. Apply validation_split: 0.05 (splits into 19,000 train + 1,000 validation)
-#
-# WHEN TO USE VALIDATION:
-#   - Always recommended for production training
-#   - Helps detect overfitting
-#   - Can disable for quick PoC tests
-#
 validation:
-  # Enable validation during training
-  # When enabled, a portion of training data is reserved for validation
   enabled: true
+  dataset: null              # null = split from training data
+  validation_split: 0.05     # Reserve 5% for validation
+  eval_strategy: "steps"     # Options: steps, epoch, no
+  eval_steps: 25             # Evaluation frequency
   
-  # Validation dataset (null = use split from training data)
-  # Options:
-  #   - null: Automatically split from training data (recommended)
-  #   - "dataset_name": Use a different dataset for validation
-  # Example: dataset: "Beryex/xlam-function-calling-60k-sharegpt"
-  dataset: null
-  
-  # Validation split percentage (only used if dataset is null)
-  # This reserves a portion of training data for validation
-  # Recommendations:
-  #   - 0.05 (5%): Standard for large datasets
-  #   - 0.10 (10%): Better for smaller datasets
-  #   - 0.15 (15%): Maximum recommended
-  # Example: With 20k samples and 0.05 split:
-  #   - Training: 19,000 samples
-  #   - Validation: 1,000 samples
-  validation_split: 0.05
-  
-  # Evaluation strategy
-  # Options:
-  #   - "steps": Evaluate every N steps (recommended)
-  #   - "epoch": Evaluate at end of each epoch
-  #   - "no": Disable evaluation
-  eval_strategy: "steps"
-  
-  # Evaluation frequency (number of steps between evaluations)
-  # Should match or be multiple of save_steps
-  # Recommendations:
-  #   - 25: Frequent evaluation (matches default save_steps)
-  #   - 50: Less frequent, faster training
-  #   - 100: Minimal evaluation overhead
-  eval_steps: 25
-  
-  # Metrics to compute during validation
-  # Available metrics:
-  #   - "loss": Validation loss (always computed)
-  #   - "perplexity": Language model perplexity
-  #   - "token_accuracy": Token-level accuracy
   metrics:
     - "loss"
     - "perplexity"
@@ -426,129 +156,61 @@ validation:
 # ============================================================================
 benchmarking:
   enabled: true
-  
-  # Metrics to track
   track_gpu_utilization: true
   track_throughput: true
   track_memory: true
-  
-  # Output file
   output_file: "logs/benchmark_results.json"
 
 # ============================================================================
 # INFERENCE CONFIGURATION
 # ============================================================================
 inference:
-  # Test prompts for validation
   test_prompts:
     - role: "system"
       content: "You are a helpful AI assistant with function calling capabilities."
     - role: "user"
       content: "Book a flight from New York to San Francisco on March 15th for 2 passengers."
   
-  # Generation parameters
   max_new_tokens: 256
   temperature: 0.7
   top_p: 0.9
   do_sample: true
 
 # ============================================================================
-# HYPERPARAMETER TUNING GUIDE
+# CONFIGURATION PRESETS
 # ============================================================================
-# 
-# Learning Rate:
-#   - Start with 2e-4 for LoRA
-#   - Increase to 5e-4 for faster convergence (risk of instability)
-#   - Decrease to 1e-4 for more stable training
-#
-# LoRA Rank (r):
-#   - r=8: Faster, less memory, good for simple tasks
-#   - r=16: Balanced (recommended)
-#   - r=32: Better performance, more memory
-#   - r=64: Best performance, highest memory usage
-#
-# Batch Size:
-#   - Increase per_device_batch_size if you have GPU memory
-#   - Adjust gradient_accumulation_steps to maintain effective batch size
-#   - Effective batch size of 32-128 works well for most tasks
-#
-# Epochs:
-#   - 1 epoch: Quick PoC, may underfit
-#   - 2-3 epochs: Recommended for most tasks
-#   - 5+ epochs: Risk of overfitting, use with validation
-#
-# FSDP vs DDP:
-#   - Use FSDP for models >7B or when memory is tight
-#   - Use DDP for smaller models or single-node training
-#   - FSDP has slightly higher communication overhead
-#
-# Dataset Size:
-#   - 20k samples: ~15-30 min training (PoC)
-#   - 60k samples: ~45-90 min training (full dataset)
-#   - Scale linearly with more data
-#
-# ============================================================================
-# QUICK CONFIGURATION PRESETS
-# ============================================================================
+# Copy these into the sections above to quickly configure for different scenarios
 #
 # PRESET 1: Fast PoC (5-15 minutes)
-# ----------------------------------
-# model:
-#   model_id: "Qwen/Qwen2.5-1.5B-Instruct"
-# dataset:
-#   max_samples: 10000
-# training:
-#   num_train_epochs: 1
-#   per_device_train_batch_size: 16
-# lora:
-#   r: 8
+# model_id: "Qwen/Qwen2.5-1.5B-Instruct"
+# max_samples: 10000
+# num_train_epochs: 1
+# per_device_train_batch_size: 16
+# lora r: 8
 #
-# PRESET 2: Balanced PoC (15-30 minutes)
-# ---------------------------------------
-# model:
-#   model_id: "Qwen/Qwen2.5-7B-Instruct"
-# dataset:
-#   max_samples: 20000
-# training:
-#   num_train_epochs: 1
-#   per_device_train_batch_size: 8
-# lora:
-#   r: 16
+# PRESET 2: Balanced PoC (15-30 minutes) - CURRENT CONFIG
+# model_id: "Qwen/Qwen2.5-7B-Instruct"
+# max_samples: 20000
+# num_train_epochs: 1
+# per_device_train_batch_size: 8
+# lora r: 16
 #
 # PRESET 3: Production Quality (2-4 hours)
-# -----------------------------------------
-# model:
-#   model_id: "Qwen/Qwen2.5-7B-Instruct"
-# dataset:
-#   max_samples: 60000
-# training:
-#   num_train_epochs: 3
-#   per_device_train_batch_size: 8
-# lora:
-#   r: 32
+# model_id: "Qwen/Qwen2.5-7B-Instruct"
+# max_samples: 60000
+# num_train_epochs: 3
+# per_device_train_batch_size: 8
+# lora r: 32
 #
 # PRESET 4: High Quality (4-8 hours)
-# -----------------------------------
-# model:
-#   model_id: "Qwen/Qwen2.5-14B-Instruct"
-# dataset:
-#   max_samples: null  # Use all data
-# training:
-#   num_train_epochs: 3
-#   per_device_train_batch_size: 4
-# lora:
-#   r: 32
+# model_id: "Qwen/Qwen2.5-14B-Instruct"
+# max_samples: null
+# num_train_epochs: 3
+# per_device_train_batch_size: 4
+# lora r: 32
 #
 # PRESET 5: Memory Constrained
-# -----------------------------
-# model:
-#   model_id: "Qwen/Qwen2.5-7B-Instruct"
-# training:
-#   per_device_train_batch_size: 4
-#   gradient_accumulation_steps: 8
-# lora:
-#   r: 8
-# distributed:
-#   fsdp:
-#     cpu_offload: true
-#
+# per_device_train_batch_size: 4
+# gradient_accumulation_steps: 8
+# lora r: 8
+# cpu_offload: true
