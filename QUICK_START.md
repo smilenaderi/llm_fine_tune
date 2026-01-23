@@ -92,6 +92,9 @@ watch_latest
 # Monitor GPUs
 watch_gpu
 
+# Monitor CPU/memory
+watch_htop
+
 # Check status
 job_status
 ```

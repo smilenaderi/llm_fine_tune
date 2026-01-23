@@ -57,6 +57,9 @@ watch_latest
 # Monitor GPU usage
 watch_gpu
 
+# Monitor CPU/memory usage
+watch_htop
+
 # Check job status
 job_status
 
@@ -301,6 +304,7 @@ alias llm-train='cd /shared/llm-fine-tune && sbatch scripts/submit_job.sh'
 alias llm-status='squeue --me'
 alias llm-logs='cd /shared/llm-fine-tune && source scripts/monitor.sh && watch_latest'
 alias llm-gpu='cd /shared/llm-fine-tune && source scripts/monitor.sh && watch_gpu'
+alias llm-htop='cd /shared/llm-fine-tune && source scripts/monitor.sh && watch_htop'
 alias llm-results='cat /shared/llm-fine-tune/logs/benchmark_results.json | python -m json.tool'
 ```
 

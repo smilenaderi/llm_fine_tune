@@ -103,6 +103,7 @@ llm-fine-tune/
 **`scripts/monitor.sh`**
 - `watch_latest` - Displays most recent training logs
 - `watch_gpu` - Live GPU monitoring with nvitop
+- `watch_htop` - Live CPU/memory monitoring with htop
 - `job_status` - Shows SLURM job queue and history
 - `clean_checkpoints` - Removes old checkpoint files
 

@@ -59,6 +59,21 @@ watch_gpu() {
     srun --jobid=$JOB_ID --overlap --pty bash -c "source envs/llm-env/bin/activate && nvitop"
 }
 
+# Monitor CPU and memory usage for running job
+watch_htop() {
+    # Automatically grab the Job ID of your first RUNNING job
+    JOB_ID=$(squeue --me --states=RUNNING -h -o %A | head -n 1)
+    
+    if [ -z "$JOB_ID" ]; then
+        echo "❌ No running jobs found! Submit one first."
+        echo "💡 Tip: Run 'sbatch scripts/submit_job.sh' to start training"
+        return 1
+    fi
+    
+    echo "👀 Found Job $JOB_ID. Launching htop..."
+    srun --jobid=$JOB_ID --overlap --pty htop
+}
+
 # Show job status
 job_status() {
     echo "📊 Your SLURM Jobs:"
@@ -159,6 +174,7 @@ show_help() {
     echo "Available functions:"
     echo "  watch_latest           - Tail the most recent error log"
     echo "  watch_gpu              - Monitor GPU usage for running job"
+    echo "  watch_htop             - Monitor CPU/memory usage for running job"
     echo "  job_status             - Show current and recent job status"
     echo "  clean_checkpoints      - Remove all checkpoint files"
     echo "  start_tensorboard      - Start TensorBoard (compare all jobs)"
@@ -168,6 +184,7 @@ show_help() {
     echo "Example:"
     echo "  $ watch_latest"
     echo "  $ watch_gpu"
+    echo "  $ watch_htop"
     echo "  $ start_tensorboard              # Compare all runs"
     echo "  $ start_tensorboard_job 12345    # View specific job"
 }
