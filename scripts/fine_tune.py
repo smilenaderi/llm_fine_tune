@@ -504,6 +504,12 @@ def create_training_args(config):
     logger.info(f"📁 Logs: {job_log_dir}")
     logger.info(f"📁 Checkpoints: {job_checkpoint_dir}")
     
+    # Save a copy of the config for this job
+    import shutil
+    config_copy_path = os.path.join(job_log_dir, 'config.yaml')
+    shutil.copy('config.yaml', config_copy_path)
+    logger.info(f"📋 Config saved: {config_copy_path}")
+    
     # Base arguments
     args = {
         'output_dir': job_checkpoint_dir,

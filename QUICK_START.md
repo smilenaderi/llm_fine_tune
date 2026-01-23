@@ -135,6 +135,7 @@ Then open your browser to: **http://localhost:6006**
 ```
 logs/
 ├── job_12345/
+│   ├── config.yaml            # Copy of config used for this job
 │   ├── slurm.out              # SLURM stdout
 │   ├── slurm.err              # SLURM stderr  
 │   ├── tensorboard/           # TensorBoard events
