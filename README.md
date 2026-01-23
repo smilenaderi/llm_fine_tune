@@ -1,87 +1,144 @@
-# LLM Fine-Tuning with Qwen2.5-7B
+# LLM Fine-Tuning with FSDP and Flash Attention 2
 
-Fine-tune Qwen2.5-7B-Instruct on function-calling data using LoRA and distributed training on Nebius AI Cloud.
+A fully configurable program for fine-tuning large language models from Hugging Face using function-calling datasets. Built for distributed training on GPU clusters with FSDP (Fully Sharded Data Parallel) and Flash Attention 2 optimization.
 
-## Quick Start
+## What Is This?
 
-1. **Setup Environment**
-```bash
-bash scripts/setup_nebius.sh
+This project provides a production-ready pipeline for fine-tuning LLMs on function-calling tasks. Everything is controlled through a single `config.yaml` file - select your model, dataset, and training parameters without touching code. The system handles distributed training, checkpointing, validation, and benchmarking automatically.
+
+## How It Works
+
+1. **Configure** - Edit `config.yaml` to select model, dataset, LoRA parameters, and training settings
+2. **Setup** - Run setup script to create environment and install dependencies
+3. **Train** - Submit SLURM job that distributes training across GPUs using FSDP
+4. **Validate** - Automatic validation tests model on function-calling tasks
+5. **Deploy** - Fine-tuned model saved with LoRA adapters ready for inference
+
+The pipeline uses LoRA for efficient parameter updates, FSDP for distributed training, and Flash Attention 2 for H100/H200 optimization.
+
+## Project Structure
+
+```
+llm-fine-tune/
+├── config.yaml              # Main configuration file
+├── requirements.txt         # Python dependencies
+├── scripts/
+│   ├── setup_nebius.sh     # Environment setup
+│   ├── submit_job.sh       # SLURM job submission
+│   ├── fine_tune.py        # Main training script
+│   ├── config_loader.py    # Configuration parser
+│   ├── validate_model.py   # Model validation tests
+│   ├── inference.py        # Inference script
+│   ├── monitor.sh          # Monitoring utilities
+│   └── generate_summary.py # Training summary generator
+├── tests/
+│   └── test_scripts.py     # Basic project tests
+├── data/                   # Dataset cache
+├── checkpoints/            # Model checkpoints
+└── logs/                   # Training logs and results
 ```
 
-2. **Configure** - Edit `config.yaml`:
-```yaml
-cluster:
-  nodes: 1
-  gpus_per_node: 4
+## Scripts Explained
 
-dataset:
-  max_samples: 20000  # 20k for PoC, 60000 for full
+### Setup & Deployment
 
-training:
-  num_train_epochs: 1
-  learning_rate: 2.0e-4
-  per_device_train_batch_size: 8
+**`scripts/setup_nebius.sh`**
+- Creates directory structure on SLURM cluster
+- Sets up Python virtual environment
+- Installs PyTorch with CUDA 12.1 support
+- Installs ML libraries (transformers, PEFT, TRL, accelerate)
+- Compiles Flash Attention 2 for H100/H200 optimization
+- Optionally configures Hugging Face authentication
 
-lora:
-  r: 16
-  lora_alpha: 32
-```
+**`scripts/submit_job.sh`**
+- Reads cluster configuration from `config.yaml`
+- Generates SLURM job script dynamically
+- Submits distributed training job with correct node/GPU allocation
+- Configures torchrun for multi-node training
+- Runs validation and summary generation after training
 
-3. **Train**
-```bash
-bash scripts/submit_job.sh
-```
+### Training & Validation
 
-4. **Monitor**
-```bash
-source scripts/monitor.sh
-watch_latest  # View logs
-watch_gpu     # GPU usage
-```
+**`scripts/fine_tune.py`**
+- Main training script with full FSDP support
+- Loads model and dataset based on `config.yaml`
+- Configures LoRA adapters for efficient fine-tuning
+- Implements BenchmarkCallback for performance tracking
+- Handles checkpointing and resumption
+- Supports both streaming and regular datasets
+- Validates environment (CUDA, Flash Attention compatibility)
 
-## Key Features
+**`scripts/config_loader.py`**
+- Parses and validates `config.yaml`
+- Resolves path variables and creates directories
+- Provides dot-notation access to config values
+- Calculates effective batch size across GPUs
+- Prints configuration summary before training
 
-- Configuration-driven (single YAML file)
-- LoRA fine-tuning with FSDP
-- Flash Attention 2 for H100/H200
-- Automatic validation & benchmarking
-- xLAM dataset (60k function-calling samples)
+**`scripts/validate_model.py`**
+- Tests fine-tuned model on 5 function-calling scenarios
+- Evaluates responses for expected keywords
+- Generates validation score (0-100%)
+- Saves detailed results to JSON
+- Provides quality assessment (Excellent/Good/Fair/Poor)
 
-## Deployment on Nebius
+**`scripts/inference.py`**
+- Loads base model and fine-tuned LoRA adapter
+- Runs inference on test prompts from config
+- Demonstrates how to use the fine-tuned model
+- Useful for quick testing after training
 
-1. Create SLURM cluster at [console.nebius.ai](https://console.nebius.ai/)
-2. Add SSH key to cluster
-3. Connect: `ssh root@login.slurm-XXXXX...`
-4. Clone repo: `git clone https://github.com/smilenaderi/llm_fine_tune.git /shared/llm-fine-tune`
-5. Run setup: `bash scripts/setup_nebius.sh`
-6. Edit `config.yaml` to customize settings
-7. Submit job: `bash scripts/submit_job.sh`
+### Monitoring
 
-## Performance (4x H200)
+**`scripts/monitor.sh`**
+- `watch_latest` - Displays most recent training logs
+- `watch_gpu` - Live GPU monitoring with nvitop
+- `job_status` - Shows SLURM job queue and history
+- `clean_checkpoints` - Removes old checkpoint files
 
-| Dataset | Epochs | Time | Throughput |
-|---------|--------|------|------------|
-| 20k     | 1      | 15-30 min | 12-15k tok/s |
-| 60k     | 1      | 45-90 min | 12-15k tok/s |
-| 60k     | 3      | 2-4 hours | 12-15k tok/s |
+Usage: `source scripts/monitor.sh` then call functions directly
 
-## Troubleshooting
+## Tests
 
-**Out of memory?** Reduce batch size or LoRA rank in `config.yaml`
+**`tests/test_scripts.py`**
+- Validates project structure (directories exist)
+- Checks required files are present
+- Tests script imports work correctly
+- Verifies SLURM script has valid bash syntax
 
-**Slow training?** Increase batch size or reduce dataset size
+Run tests: `pytest tests/`
 
-**Low validation score?** Train longer or use full dataset
+## Configuration
 
-See logs: `tail -f logs/train_*.err`
+All settings are in `config.yaml`:
+
+- **Cluster**: Nodes, GPUs per node, partition
+- **Model**: Model ID, dtype, Flash Attention settings
+- **Dataset**: Dataset name, split, sample limit, text field
+- **LoRA**: Rank, alpha, dropout, target modules
+- **Training**: Epochs, batch size, learning rate, optimizer
+- **Distributed**: FSDP/DDP strategy, sharding, CPU offload
+- **Checkpointing**: Save frequency, resume settings
+- **Validation**: Split ratio, evaluation frequency, metrics
+
+See `config.yaml` for detailed documentation and presets.
+
+## Performance
+
+On 4x H200 GPUs:
+- 20k samples, 1 epoch: 15-30 minutes @ 12-15k tok/s
+- 60k samples, 3 epochs: 2-4 hours @ 12-15k tok/s
+
+## Getting Started
+
+See [QUICK_START.md](QUICK_START.md) for detailed setup instructions and deployment guide.
 
 ## Documentation
 
-- [QUICK_START.md](QUICK_START.md) - Detailed setup
-- [STORAGE.md](STORAGE.md) - Storage config
-- [HUGGINGFACE_SETUP.md](HUGGINGFACE_SETUP.md) - HF auth
-- [config.yaml](config.yaml) - Full reference
+- [QUICK_START.md](QUICK_START.md) - Setup and usage guide
+- [COMMANDS.md](COMMANDS.md) - Full list of available commands
+- [HUGGINGFACE_SETUP.md](HUGGINGFACE_SETUP.md) - Hugging Face authentication
+- [config.yaml](config.yaml) - Complete configuration reference
 
 ## License
 

@@ -28,16 +28,6 @@ nano config.yaml
 python -c "from scripts.config_loader import load_config; load_config().print_summary()"
 ```
 
-## Data Preparation
-
-```bash
-# Prepare dataset (uses config.yaml settings)
-python scripts/prepare_data.py
-
-# Check data file
-ls -lh data/real_train.jsonl
-wc -l data/real_train.jsonl
-```
 
 ## Training Commands
 
@@ -216,22 +206,6 @@ find . -type d -name "__pycache__" -exec rm -rf {} +
 find . -type f -name "*.pyc" -delete
 ```
 
-## Configuration Shortcuts
-
-```bash
-# Quick config changes
-# Change dataset size
-sed -i 's/max_samples: 20000/max_samples: 60000/' config.yaml
-
-# Change epochs
-sed -i 's/num_train_epochs: 1/num_train_epochs: 3/' config.yaml
-
-# Change learning rate
-sed -i 's/learning_rate: 2.0e-4/learning_rate: 1.0e-4/' config.yaml
-
-# Change LoRA rank
-sed -i 's/r: 16/r: 32/' config.yaml
-```
 
 ## Troubleshooting Commands
 
