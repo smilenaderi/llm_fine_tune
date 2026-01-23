@@ -138,7 +138,7 @@ Then open your browser to: **http://localhost:6006**
 ```
 logs/
 ├── job_12345/
-│   ├── config.yaml            # Copy of config used for this job
+│   ├── config.yaml            # Snapshot of config used for this job ⭐
 │   ├── slurm.out              # SLURM stdout
 │   ├── slurm.err              # SLURM stderr  
 │   ├── tensorboard/           # TensorBoard events
@@ -155,6 +155,8 @@ checkpoints/
 └── job_12346/
     └── ...
 ```
+
+**Important:** Each job saves a snapshot of `config.yaml` at training start. This ensures validation always uses the exact same model and settings that were used during training, even if you modify the main `config.yaml` later. This prevents model mismatch errors when loading adapters.
 
 ---
 

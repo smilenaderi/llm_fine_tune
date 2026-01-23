@@ -66,7 +66,12 @@ TEST_CASES = [
 
 
 def load_model_and_tokenizer(config):
-    """Load base model, tokenizer, and adapter"""
+    """Load base model, tokenizer, and adapter
+    
+    Note: This function uses the model_id from the config that was passed in.
+    The main() function ensures we load the job-specific config snapshot
+    that was saved during training, so we always use the correct base model.
+    """
     model_config = config.get_model_config()
     storage_config = config.get_storage_config()
     
@@ -237,9 +242,22 @@ def run_validation(model, tokenizer, config):
 
 def main():
     try:
-        # Load configuration
+        # Load configuration from job-specific copy
         logger.info("📋 Loading configuration...")
-        config = load_config()
+        
+        # Get job ID and construct path to job-specific config
+        job_id = os.environ.get('SLURM_JOB_ID', f'local_{int(time.time())}')
+        storage_config_path = 'config.yaml'
+        
+        # Try to load from job-specific config first (saved during training)
+        job_config_path = f'logs/job_{job_id}/config.yaml'
+        if os.path.exists(job_config_path):
+            logger.info(f"✓ Using job-specific config: {job_config_path}")
+            config = load_config(job_config_path)
+        else:
+            logger.warning(f"⚠️  Job-specific config not found at {job_config_path}")
+            logger.info(f"   Using main config: {storage_config_path}")
+            config = load_config(storage_config_path)
         
         # Load model and tokenizer
         model, tokenizer = load_model_and_tokenizer(config)

@@ -504,11 +504,14 @@ def create_training_args(config):
     logger.info(f"📁 Logs: {job_log_dir}")
     logger.info(f"📁 Checkpoints: {job_checkpoint_dir}")
     
-    # Save a copy of the config for this job
+    # Save a copy of the config for this job FIRST (before any training)
     import shutil
     config_copy_path = os.path.join(job_log_dir, 'config.yaml')
-    shutil.copy('config.yaml', config_copy_path)
-    logger.info(f"📋 Config saved: {config_copy_path}")
+    if os.path.exists('config.yaml'):
+        shutil.copy('config.yaml', config_copy_path)
+        logger.info(f"📋 Config snapshot saved: {config_copy_path}")
+    else:
+        logger.warning("⚠️  config.yaml not found in current directory")
     
     # Base arguments
     args = {
