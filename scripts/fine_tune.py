@@ -30,6 +30,13 @@ except ImportError:
     logger.info("ℹ️  Flash Attention 2 not installed - using standard attention")
     logger.info("   Install with: pip install flash-attn --no-build-isolation")
 
+# Try to import TensorBoard for direct logging
+try:
+    from torch.utils.tensorboard import SummaryWriter
+    TENSORBOARD_AVAILABLE = True
+except ImportError:
+    TENSORBOARD_AVAILABLE = False
+
 
 class BenchmarkCallback(TrainerCallback):
     """Callback to track performance metrics during training"""
@@ -49,6 +56,15 @@ class BenchmarkCallback(TrainerCallback):
         self.num_gpus = torch.cuda.device_count() if torch.cuda.is_available() else 0
         self.gpu_metrics = {i: {'utilization': [], 'memory_used': [], 'temperature': []} 
                            for i in range(self.num_gpus)}
+        
+        # Store TensorBoard writer
+        self.tb_writer = None
+    
+    def on_init_end(self, args, state, control, **kwargs):
+        """Initialize TensorBoard writer"""
+        if TENSORBOARD_AVAILABLE and args.logging_dir and state.is_world_process_zero:
+            self.tb_writer = SummaryWriter(log_dir=args.logging_dir)
+            logger.info(f"✓ TensorBoard writer initialized: {args.logging_dir}")
     
     def on_train_begin(self, args, state, control, **kwargs):
         self.start_time = time.time()
@@ -103,23 +119,20 @@ class BenchmarkCallback(TrainerCallback):
         
         return metrics
     
-    def on_log(self, args, state, control, logs=None, **kwargs):
+    def on_log(self, args, state, control, logs=None, model=None, **kwargs):
         """Log additional metrics to TensorBoard"""
-        if logs is None:
-            return
-        
-        # Only log from main process to avoid duplicates
-        if not state.is_world_process_zero:
+        if logs is None or not state.is_world_process_zero or self.tb_writer is None:
             return
         
         current_time = time.time()
+        custom_metrics = {}
         
         # Calculate throughput (steps per second)
         if self.last_log_time is not None:
             time_diff = current_time - self.last_log_time
             if time_diff > 0:
                 steps_per_sec = args.logging_steps / time_diff
-                logs['performance/steps_per_second'] = steps_per_sec
+                custom_metrics['performance/steps_per_second'] = steps_per_sec
         
         self.last_log_time = current_time
         
@@ -131,23 +144,20 @@ class BenchmarkCallback(TrainerCallback):
             prefix = f'gpu_{gpu_id}'
             
             if 'utilization' in metrics:
-                logs[f'{prefix}/utilization_percent'] = metrics['utilization']
+                custom_metrics[f'{prefix}/utilization_percent'] = metrics['utilization']
             
             if 'memory_used_mb' in metrics and 'memory_total_mb' in metrics:
-                logs[f'{prefix}/memory_used_gb'] = metrics['memory_used_mb'] / 1024
-                logs[f'{prefix}/memory_total_gb'] = metrics['memory_total_mb'] / 1024
-                logs[f'{prefix}/memory_usage_percent'] = (metrics['memory_used_mb'] / metrics['memory_total_mb'] * 100) if metrics['memory_total_mb'] > 0 else 0
+                custom_metrics[f'{prefix}/memory_used_gb'] = metrics['memory_used_mb'] / 1024
+                custom_metrics[f'{prefix}/memory_usage_percent'] = (metrics['memory_used_mb'] / metrics['memory_total_mb'] * 100) if metrics['memory_total_mb'] > 0 else 0
             
             if 'temperature' in metrics:
-                logs[f'{prefix}/temperature_celsius'] = metrics['temperature']
+                custom_metrics[f'{prefix}/temperature_celsius'] = metrics['temperature']
             
             if 'power_draw' in metrics:
-                logs[f'{prefix}/power_draw_watts'] = metrics['power_draw']
+                custom_metrics[f'{prefix}/power_draw_watts'] = metrics['power_draw']
             
             if 'memory_allocated_gb' in metrics:
-                logs[f'{prefix}/memory_allocated_gb'] = metrics['memory_allocated_gb']
-                logs[f'{prefix}/memory_reserved_gb'] = metrics['memory_reserved_gb']
-                logs[f'{prefix}/memory_max_allocated_gb'] = metrics['memory_max_allocated_gb']
+                custom_metrics[f'{prefix}/memory_allocated_gb'] = metrics['memory_allocated_gb']
         
         # Aggregate GPU metrics across all GPUs
         if gpu_metrics:
@@ -156,30 +166,33 @@ class BenchmarkCallback(TrainerCallback):
             avg_temperature = sum(m.get('temperature', 0) for m in gpu_metrics.values()) / len(gpu_metrics)
             total_power = sum(m.get('power_draw', 0) for m in gpu_metrics.values())
             
-            logs['gpu_aggregate/avg_utilization_percent'] = avg_utilization
-            logs['gpu_aggregate/total_memory_used_gb'] = total_memory_used
-            logs['gpu_aggregate/avg_temperature_celsius'] = avg_temperature
-            logs['gpu_aggregate/total_power_watts'] = total_power
+            custom_metrics['gpu_aggregate/avg_utilization_percent'] = avg_utilization
+            custom_metrics['gpu_aggregate/total_memory_used_gb'] = total_memory_used
+            custom_metrics['gpu_aggregate/avg_temperature_celsius'] = avg_temperature
+            custom_metrics['gpu_aggregate/total_power_watts'] = total_power
         
         # Calculate tokens per second if available
         if 'train_samples_per_second' in logs:
-            # Estimate tokens (assuming avg 512 tokens per sample)
             avg_tokens_per_sample = self.config.get('training.max_seq_length', 2048) * 0.5
-            logs['performance/tokens_per_second'] = logs['train_samples_per_second'] * avg_tokens_per_sample
+            custom_metrics['performance/tokens_per_second'] = logs['train_samples_per_second'] * avg_tokens_per_sample
         
         # Add training progress percentage
         if state.max_steps > 0:
-            logs['performance/progress_percent'] = (state.global_step / state.max_steps) * 100
+            custom_metrics['performance/progress_percent'] = (state.global_step / state.max_steps) * 100
         
         # Add elapsed time
-        logs['performance/elapsed_time_minutes'] = (current_time - self.start_time) / 60
+        custom_metrics['performance/elapsed_time_minutes'] = (current_time - self.start_time) / 60
+        
+        # Write directly to TensorBoard
+        for key, value in custom_metrics.items():
+            self.tb_writer.add_scalar(key, value, state.global_step)
+        
+        # Flush to ensure metrics are written
+        self.tb_writer.flush()
         
         # Debug: Log what we're adding (only first time)
         if state.global_step == args.logging_steps:
-            logger.info(f"📊 Logging {len([k for k in logs.keys() if '/' in k])} custom metrics to TensorBoard")
-        
-        # Note: The logs dict is automatically written to TensorBoard by the Trainer
-        # All keys with '/' will be grouped in TensorBoard UI
+            logger.info(f"📊 Writing {len(custom_metrics)} custom metrics directly to TensorBoard")
     
     def on_step_end(self, args, state, control, **kwargs):
         step_time = time.time()
@@ -189,6 +202,68 @@ class BenchmarkCallback(TrainerCallback):
         if torch.cuda.is_available():
             memory_allocated = torch.cuda.max_memory_allocated() / 1024**3  # GB
             self.metrics['gpu_memory'].append(memory_allocated)
+        
+        # Collect metrics for next log cycle (only on main process)
+        if state.is_world_process_zero and state.global_step % args.logging_steps == 0:
+            current_time = time.time()
+            custom_metrics = {}
+            
+            # Calculate throughput
+            if self.last_log_time is not None:
+                time_diff = current_time - self.last_log_time
+                if time_diff > 0:
+                    steps_per_sec = args.logging_steps / time_diff
+                    custom_metrics['performance/steps_per_second'] = steps_per_sec
+            
+            self.last_log_time = current_time
+            
+            # Get GPU metrics
+            gpu_metrics = self._get_gpu_metrics()
+            
+            # Log per-GPU metrics
+            for gpu_id, metrics in gpu_metrics.items():
+                prefix = f'gpu_{gpu_id}'
+                
+                if 'utilization' in metrics:
+                    custom_metrics[f'{prefix}/utilization_percent'] = metrics['utilization']
+                
+                if 'memory_used_mb' in metrics and 'memory_total_mb' in metrics:
+                    custom_metrics[f'{prefix}/memory_used_gb'] = metrics['memory_used_mb'] / 1024
+                    custom_metrics[f'{prefix}/memory_usage_percent'] = (metrics['memory_used_mb'] / metrics['memory_total_mb'] * 100) if metrics['memory_total_mb'] > 0 else 0
+                
+                if 'temperature' in metrics:
+                    custom_metrics[f'{prefix}/temperature_celsius'] = metrics['temperature']
+                
+                if 'power_draw' in metrics:
+                    custom_metrics[f'{prefix}/power_draw_watts'] = metrics['power_draw']
+                
+                if 'memory_allocated_gb' in metrics:
+                    custom_metrics[f'{prefix}/memory_allocated_gb'] = metrics['memory_allocated_gb']
+            
+            # Aggregate metrics
+            if gpu_metrics:
+                avg_util = sum(m.get('utilization', 0) for m in gpu_metrics.values()) / len(gpu_metrics)
+                total_mem = sum(m.get('memory_used_mb', 0) for m in gpu_metrics.values()) / 1024
+                avg_temp = sum(m.get('temperature', 0) for m in gpu_metrics.values()) / len(gpu_metrics)
+                total_power = sum(m.get('power_draw', 0) for m in gpu_metrics.values())
+                
+                custom_metrics['gpu_aggregate/avg_utilization_percent'] = avg_util
+                custom_metrics['gpu_aggregate/total_memory_used_gb'] = total_mem
+                custom_metrics['gpu_aggregate/avg_temperature_celsius'] = avg_temp
+                custom_metrics['gpu_aggregate/total_power_watts'] = total_power
+            
+            # Progress and time
+            if state.max_steps > 0:
+                custom_metrics['performance/progress_percent'] = (state.global_step / state.max_steps) * 100
+            custom_metrics['performance/elapsed_time_minutes'] = (current_time - self.start_time) / 60
+            
+            # Log using trainer's log method if available
+            if 'model' in kwargs and hasattr(kwargs.get('model'), 'log'):
+                kwargs['model'].log(custom_metrics)
+            
+            # Debug
+            if state.global_step == args.logging_steps:
+                logger.info(f"📊 Collected {len(custom_metrics)} custom metrics for TensorBoard")
     
     def on_train_end(self, args, state, control, **kwargs):
         self.metrics['training_time'] = time.time() - self.start_time
@@ -199,6 +274,11 @@ class BenchmarkCallback(TrainerCallback):
             self.metrics['avg_time_per_step'] = avg_time_per_step
         
         logger.info(f"✅ Training completed in {self.metrics['training_time']:.2f} seconds")
+        
+        # Close TensorBoard writer
+        if self.tb_writer is not None:
+            self.tb_writer.close()
+            logger.info("✓ TensorBoard writer closed")
         
         # Save benchmark results
         if self.config.get('benchmarking.enabled'):
