@@ -71,7 +71,11 @@ def load_model_and_tokenizer(config):
     storage_config = config.get_storage_config()
     
     base_model_id = model_config['model_id']
-    adapter_path = os.path.join(storage_config['checkpoint_dir'], "final_adapter")
+    
+    # Get job ID and construct path to adapter
+    job_id = os.environ.get('SLURM_JOB_ID', f'local_{int(time.time())}')
+    job_checkpoint_dir = os.path.join(storage_config['checkpoint_dir'], f'job_{job_id}')
+    adapter_path = os.path.join(job_checkpoint_dir, "final_adapter")
     
     logger.info(f"📥 Loading base model: {base_model_id}")
     
@@ -96,6 +100,7 @@ def load_model_and_tokenizer(config):
         logger.info(f"📥 Loading adapter from: {adapter_path}")
         if not os.path.exists(adapter_path):
             logger.error(f"❌ Adapter not found at {adapter_path}")
+            logger.error(f"💡 Expected location: {job_checkpoint_dir}/final_adapter")
             logger.error("💡 Run training first: sbatch scripts/submit_job.sh")
             sys.exit(1)
         
