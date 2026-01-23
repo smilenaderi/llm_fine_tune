@@ -33,7 +33,7 @@ model:
   model_id: "Qwen/Qwen2.5-7B-Instruct"
   
   torch_dtype: "bfloat16"
-  use_flash_attention: true  # Auto-detected for H100/H200
+  use_flash_attention: false  # Set to true if flash-attn is installed (H100/H200 optimization)
   cache_dir: "${storage.network_disk}/model_cache"
 
 # ============================================================================
@@ -124,10 +124,10 @@ checkpointing:
 # ============================================================================
 logging:
   logging_steps: 1           # Log frequency
-  report_to: "none"          # Options: none, tensorboard, wandb, all
+  report_to: "tensorboard"   # Options: none, tensorboard, wandb, all
   
   tensorboard:
-    enabled: false
+    enabled: true
     log_dir: "runs"
   
   wandb:

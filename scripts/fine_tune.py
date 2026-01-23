@@ -20,6 +20,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Auto-detect Flash Attention 2 availability
+FLASH_ATTENTION_AVAILABLE = False
+try:
+    import flash_attn
+    FLASH_ATTENTION_AVAILABLE = True
+    logger.info(f"✓ Flash Attention 2 detected (version {flash_attn.__version__})")
+except ImportError:
+    logger.info("ℹ️  Flash Attention 2 not installed - using standard attention")
+    logger.info("   Install with: pip install flash-attn --no-build-isolation")
+
 
 class BenchmarkCallback(TrainerCallback):
     """Callback to track performance metrics during training"""
@@ -33,10 +43,132 @@ class BenchmarkCallback(TrainerCallback):
             'gpu_memory': [],
             'training_time': 0
         }
+        self.last_log_time = None
+        
+        # Initialize GPU monitoring
+        self.num_gpus = torch.cuda.device_count() if torch.cuda.is_available() else 0
+        self.gpu_metrics = {i: {'utilization': [], 'memory_used': [], 'temperature': []} 
+                           for i in range(self.num_gpus)}
     
     def on_train_begin(self, args, state, control, **kwargs):
         self.start_time = time.time()
+        self.last_log_time = self.start_time
         logger.info("🚀 Training started")
+        
+        # Log initial GPU state
+        if torch.cuda.is_available():
+            for i in range(self.num_gpus):
+                props = torch.cuda.get_device_properties(i)
+                logger.info(f"GPU {i}: {props.name} ({props.total_memory / 1024**3:.1f} GB)")
+    
+    def _get_gpu_metrics(self):
+        """Get current GPU metrics for all devices"""
+        metrics = {}
+        if not torch.cuda.is_available():
+            return metrics
+        
+        try:
+            import subprocess
+            # Use nvidia-smi to get detailed GPU metrics
+            result = subprocess.run(
+                ['nvidia-smi', '--query-gpu=index,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw',
+                 '--format=csv,noheader,nounits'],
+                capture_output=True, text=True, timeout=2
+            )
+            
+            if result.returncode == 0:
+                for line in result.stdout.strip().split('\n'):
+                    if line:
+                        parts = [p.strip() for p in line.split(',')]
+                        if len(parts) >= 6:
+                            gpu_id = int(parts[0])
+                            metrics[gpu_id] = {
+                                'utilization': float(parts[1]) if parts[1] != '[N/A]' else 0,
+                                'memory_used_mb': float(parts[2]) if parts[2] != '[N/A]' else 0,
+                                'memory_total_mb': float(parts[3]) if parts[3] != '[N/A]' else 0,
+                                'temperature': float(parts[4]) if parts[4] != '[N/A]' else 0,
+                                'power_draw': float(parts[5]) if parts[5] != '[N/A]' else 0,
+                            }
+        except Exception as e:
+            # Fallback to basic PyTorch metrics
+            pass
+        
+        # Add PyTorch memory metrics
+        for i in range(self.num_gpus):
+            if i not in metrics:
+                metrics[i] = {}
+            metrics[i]['memory_allocated_gb'] = torch.cuda.memory_allocated(i) / 1024**3
+            metrics[i]['memory_reserved_gb'] = torch.cuda.memory_reserved(i) / 1024**3
+            metrics[i]['memory_max_allocated_gb'] = torch.cuda.max_memory_allocated(i) / 1024**3
+        
+        return metrics
+    
+    def on_log(self, args, state, control, logs=None, **kwargs):
+        """Log additional metrics to TensorBoard"""
+        if logs is None:
+            return
+        
+        current_time = time.time()
+        
+        # Calculate throughput (steps per second)
+        if self.last_log_time is not None:
+            time_diff = current_time - self.last_log_time
+            if time_diff > 0:
+                steps_per_sec = args.logging_steps / time_diff
+                logs['performance/steps_per_second'] = steps_per_sec
+        
+        self.last_log_time = current_time
+        
+        # Get comprehensive GPU metrics
+        gpu_metrics = self._get_gpu_metrics()
+        
+        # Log per-GPU metrics
+        for gpu_id, metrics in gpu_metrics.items():
+            prefix = f'gpu_{gpu_id}'
+            
+            if 'utilization' in metrics:
+                logs[f'{prefix}/utilization_percent'] = metrics['utilization']
+            
+            if 'memory_used_mb' in metrics and 'memory_total_mb' in metrics:
+                logs[f'{prefix}/memory_used_gb'] = metrics['memory_used_mb'] / 1024
+                logs[f'{prefix}/memory_total_gb'] = metrics['memory_total_mb'] / 1024
+                logs[f'{prefix}/memory_usage_percent'] = (metrics['memory_used_mb'] / metrics['memory_total_mb'] * 100) if metrics['memory_total_mb'] > 0 else 0
+            
+            if 'temperature' in metrics:
+                logs[f'{prefix}/temperature_celsius'] = metrics['temperature']
+            
+            if 'power_draw' in metrics:
+                logs[f'{prefix}/power_draw_watts'] = metrics['power_draw']
+            
+            if 'memory_allocated_gb' in metrics:
+                logs[f'{prefix}/memory_allocated_gb'] = metrics['memory_allocated_gb']
+                logs[f'{prefix}/memory_reserved_gb'] = metrics['memory_reserved_gb']
+                logs[f'{prefix}/memory_max_allocated_gb'] = metrics['memory_max_allocated_gb']
+        
+        # Aggregate GPU metrics across all GPUs
+        if gpu_metrics:
+            avg_utilization = sum(m.get('utilization', 0) for m in gpu_metrics.values()) / len(gpu_metrics)
+            total_memory_used = sum(m.get('memory_used_mb', 0) for m in gpu_metrics.values()) / 1024
+            avg_temperature = sum(m.get('temperature', 0) for m in gpu_metrics.values()) / len(gpu_metrics)
+            total_power = sum(m.get('power_draw', 0) for m in gpu_metrics.values())
+            
+            logs['gpu_aggregate/avg_utilization_percent'] = avg_utilization
+            logs['gpu_aggregate/total_memory_used_gb'] = total_memory_used
+            logs['gpu_aggregate/avg_temperature_celsius'] = avg_temperature
+            logs['gpu_aggregate/total_power_watts'] = total_power
+        
+        # Calculate tokens per second if available
+        if 'train_samples_per_second' in logs:
+            # Estimate tokens (assuming avg 512 tokens per sample)
+            avg_tokens_per_sample = self.config.get('training.max_seq_length', 2048) * 0.5
+            logs['performance/tokens_per_second'] = logs['train_samples_per_second'] * avg_tokens_per_sample
+        
+        # Add training progress percentage
+        if state.max_steps > 0:
+            logs['performance/progress_percent'] = (state.global_step / state.max_steps) * 100
+        
+        # Add elapsed time
+        logs['performance/elapsed_time_minutes'] = (current_time - self.start_time) / 60
     
     def on_step_end(self, args, state, control, **kwargs):
         step_time = time.time()
@@ -64,13 +196,12 @@ class BenchmarkCallback(TrainerCallback):
     def _save_benchmark_results(self, state):
         """Save benchmark results to file"""
         # Get job ID from environment
-        job_id = os.environ.get('SLURM_JOB_ID', 'local')
-        benchmark_file = self.config.get('benchmarking.output_file')
+        job_id = os.environ.get('SLURM_JOB_ID', f'local_{int(time.time())}')
         
-        # Add job ID to filename
-        base_name = os.path.splitext(benchmark_file)[0]
-        ext = os.path.splitext(benchmark_file)[1]
-        benchmark_file = f"{base_name}_{job_id}{ext}"
+        # Save to job-specific directory
+        job_log_dir = os.path.join(self.config.get('storage.log_dir'), f'job_{job_id}')
+        os.makedirs(job_log_dir, exist_ok=True)
+        benchmark_file = os.path.join(job_log_dir, 'benchmark_results.json')
         
         # Get final loss from train_loss in the last log entry
         final_loss = 0
@@ -201,13 +332,25 @@ def prepare_model_and_tokenizer(config):
         
         # Determine attention implementation
         compute_capability = torch.cuda.get_device_capability()[0]
-        use_flash = model_config.get('use_flash_attention', True) and compute_capability >= 8
+        gpu_supports_flash = compute_capability >= 8
+        config_wants_flash = model_config.get('use_flash_attention', False)
+        
+        # Use Flash Attention only if: installed AND GPU supports it AND (config enables it OR auto-detect)
+        use_flash = FLASH_ATTENTION_AVAILABLE and gpu_supports_flash and (config_wants_flash or not config_wants_flash)
+        # Simplified: if flash-attn is installed and GPU supports it, use it
+        use_flash = FLASH_ATTENTION_AVAILABLE and gpu_supports_flash
+        
         attn_implementation = "flash_attention_2" if use_flash else "eager"
         
         if use_flash:
-            logger.info("⚡ Using Flash Attention 2")
+            logger.info("⚡ Using Flash Attention 2 (auto-detected)")
         else:
-            logger.info("📝 Using standard attention")
+            if not FLASH_ATTENTION_AVAILABLE:
+                logger.info("📝 Using standard attention (flash-attn not installed)")
+            elif not gpu_supports_flash:
+                logger.info(f"📝 Using standard attention (GPU compute capability {compute_capability}.x < 8.0)")
+            else:
+                logger.info("📝 Using standard attention")
         
         # Load model
         dtype_map = {
@@ -257,9 +400,22 @@ def create_training_args(config):
     dataset_config = config.get_dataset_config()
     distributed_config = config.get_distributed_config()
     
+    # Get job ID for organizing outputs
+    job_id = os.environ.get('SLURM_JOB_ID', f'local_{int(time.time())}')
+    
+    # Create job-specific directories
+    job_log_dir = os.path.join(storage_config['log_dir'], f'job_{job_id}')
+    job_checkpoint_dir = os.path.join(storage_config['checkpoint_dir'], f'job_{job_id}')
+    os.makedirs(job_log_dir, exist_ok=True)
+    os.makedirs(job_checkpoint_dir, exist_ok=True)
+    
+    logger.info(f"📁 Job ID: {job_id}")
+    logger.info(f"📁 Logs: {job_log_dir}")
+    logger.info(f"📁 Checkpoints: {job_checkpoint_dir}")
+    
     # Base arguments
     args = {
-        'output_dir': storage_config['checkpoint_dir'],
+        'output_dir': job_checkpoint_dir,
         'num_train_epochs': training_config['num_train_epochs'],
         'per_device_train_batch_size': training_config['per_device_train_batch_size'],
         'gradient_accumulation_steps': training_config['gradient_accumulation_steps'],
@@ -280,6 +436,14 @@ def create_training_args(config):
         'packing': training_config.get('packing', False),
         'max_length': training_config.get('max_seq_length', 2048),
     }
+    
+    # Add TensorBoard logging directory if enabled
+    if logging_config.get('report_to') == 'tensorboard' or 'tensorboard' in logging_config.get('report_to', ''):
+        tensorboard_config = logging_config.get('tensorboard', {})
+        if tensorboard_config.get('enabled', True):
+            tensorboard_dir = os.path.join(job_log_dir, 'tensorboard')
+            args['logging_dir'] = tensorboard_dir
+            logger.info(f"✓ TensorBoard logging enabled: {tensorboard_dir}")
     
     # Add FSDP configuration if enabled
     if distributed_config.get('strategy') == 'fsdp' and distributed_config['fsdp'].get('enabled'):
@@ -353,7 +517,8 @@ def main():
         # Check for existing checkpoints
         checkpointing_config = config.get_checkpointing_config()
         last_checkpoint = None
-        output_dir = config.get('storage.checkpoint_dir')
+        job_id = os.environ.get('SLURM_JOB_ID', f'local_{int(time.time())}')
+        output_dir = os.path.join(config.get('storage.checkpoint_dir'), f'job_{job_id}')
         
         if checkpointing_config.get('resume_from_checkpoint') and os.path.isdir(output_dir):
             from transformers.trainer_utils import get_last_checkpoint

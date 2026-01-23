@@ -47,12 +47,25 @@ pip install transformers datasets peft accelerate trl bitsandbytes pyyaml
 # 7. Install Flash Attention (H100/H200 optimization)
 echo ""
 echo "⚡ Installing Flash Attention 2..."
-pip install flash-attn --no-build-isolation
+# Set pip cache and temp to /shared to avoid cross-device link errors
+export PIP_CACHE_DIR=/shared/.pip-cache
+export TMPDIR=/shared/tmp
+mkdir -p $PIP_CACHE_DIR $TMPDIR
+
+# Try installing with prebuilt wheel first
+if ! pip install flash-attn --no-build-isolation 2>/dev/null; then
+    echo "⚠️  Prebuilt wheel failed, trying direct wheel download..."
+    # Fallback: Download and install wheel directly
+    WHEEL_URL="https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu12torch2.5cxx11abiFALSE-cp310-cp310-linux_x86_64.whl"
+    wget -q $WHEEL_URL -O /shared/tmp/flash_attn.whl
+    pip install /shared/tmp/flash_attn.whl
+    rm -f /shared/tmp/flash_attn.whl
+fi
 
 # 8. Install monitoring tools
 echo ""
 echo "📊 Installing monitoring tools..."
-pip install nvitop
+pip install nvitop tensorboard
 
 # 9. Hugging Face login
 echo ""
@@ -81,13 +94,19 @@ python -c "import transformers; print(f'Transformers: {transformers.__version__}
 python -c "import peft; print(f'PEFT: {peft.__version__}')"
 python -c "import trl; print(f'TRL: {trl.__version__}')"
 
+# Check Flash Attention (optional)
+if python -c "import flash_attn" 2>/dev/null; then
+    python -c "import flash_attn; print(f'Flash Attention: {flash_attn.__version__}')"
+else
+    echo "⚠️  Flash Attention not installed (optional optimization)"
+fi
+
 echo ""
 echo "=================================================="
 echo "✅ Setup Complete!"
 echo ""
 echo "Next steps:"
-echo "1. Prepare training data:"
-echo "   python scripts/prepare_data.py"
+echo "1. Edit config.yaml to choose your preset"
 echo ""
 echo "2. Submit training job:"
 echo "   sbatch scripts/submit_job.sh"

@@ -25,13 +25,18 @@ echo "  Partition: $PARTITION"
 echo "=========================================="
 
 # Create the actual job script
-cat > /tmp/llm_finetune_job_$$.sh << 'EOFSCRIPT'
+cat > /tmp/llm_finetune_job_$.sh << 'EOFSCRIPT'
 #!/bin/bash
+
+# Create job-specific log directory
+JOB_LOG_DIR="logs/job_${SLURM_JOB_ID}"
+mkdir -p "$JOB_LOG_DIR"
 
 echo "=========================================="
 echo "LLM Fine-Tuning Job Started"
 echo "Job ID: $SLURM_JOB_ID"
 echo "Nodes: $SLURM_NODELIST"
+echo "Log Directory: $JOB_LOG_DIR"
 echo "=========================================="
 
 # 1. Environment Setup
@@ -76,7 +81,7 @@ if [ $TRAIN_EXIT_CODE -eq 0 ]; then
     
     # Generate training summary
     echo "Generating training summary..."
-    python scripts/generate_summary.py
+    python scripts/generate_summary.py > "$JOB_LOG_DIR/training_summary.txt"
     
     # Run validation
     echo "Running model validation..."
@@ -96,19 +101,20 @@ fi
 
 echo "=========================================="
 echo "Job completed at $(date)"
+echo "All outputs saved to: $JOB_LOG_DIR"
 echo "=========================================="
 EOFSCRIPT
 
-# Submit the job with dynamic parameters
+# Submit the job with dynamic parameters and job-specific output files
 sbatch \
     --job-name=llm-finetune \
     --partition=$PARTITION \
     --nodes=$NODES \
     --gpus-per-node=$GPUS_PER_NODE \
-    --output=logs/train_%j.out \
-    --error=logs/train_%j.err \
+    --output=logs/job_%j/slurm.out \
+    --error=logs/job_%j/slurm.err \
     --time=04:00:00 \
-    /tmp/llm_finetune_job_$$.sh
+    /tmp/llm_finetune_job_$.sh
 
 # Clean up temp file after a delay (in background)
-(sleep 5 && rm -f /tmp/llm_finetune_job_$$.sh) &
+(sleep 5 && rm -f /tmp/llm_finetune_job_$.sh) &

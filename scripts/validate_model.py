@@ -5,6 +5,7 @@ Tests the fine-tuned model on function calling tasks
 import os
 import sys
 import json
+import time
 import torch
 import logging
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -211,8 +212,10 @@ def run_validation(model, tokenizer, config):
     
     # Save results
     storage_config = config.get_storage_config()
-    job_id = os.environ.get('SLURM_JOB_ID', 'local')
-    results_file = os.path.join(storage_config['log_dir'], f'validation_results_{job_id}.json')
+    job_id = os.environ.get('SLURM_JOB_ID', f'local_{int(time.time())}')
+    job_log_dir = os.path.join(storage_config['log_dir'], f'job_{job_id}')
+    os.makedirs(job_log_dir, exist_ok=True)
+    results_file = os.path.join(job_log_dir, 'validation_results.json')
     
     with open(results_file, 'w') as f:
         json.dump({

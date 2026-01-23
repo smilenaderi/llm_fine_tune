@@ -9,6 +9,7 @@ ssh root@login.slurm-XXXXX.backbone-XXXXX.msp.eu-north1.nebius.cloud -i ~/.ssh/i
 
 ### 2. Clone Repository
 ```bash
+mkdir -p /shared
 cd /shared
 git clone https://github.com/smilenaderi/llm_fine_tune.git llm-fine-tune
 cd llm-fine-tune
@@ -95,6 +96,62 @@ watch_gpu
 job_status
 ```
 
+### View Training Metrics (TensorBoard)
+
+**On the Nebius login node:**
+```bash
+source scripts/monitor.sh
+
+# Compare all training runs (recommended)
+start_tensorboard
+
+# Or view specific job only
+start_tensorboard_job 12345
+```
+
+**Access from your local machine:**
+
+Open a new terminal on your local machine and create an SSH tunnel:
+```bash
+# Replace XXXXX with your cluster ID
+ssh -L 6006:localhost:6006 root@login.slurm-XXXXX.backbone-XXXXX.msp.eu-north1.nebius.cloud -i ~/.ssh/id_ed25519
+```
+
+Then open your browser to: **http://localhost:6006**
+
+**In TensorBoard Web UI:**
+- Left sidebar shows all jobs (job_12345, job_12346, etc.)
+- Check/uncheck boxes to compare specific runs
+- Hover over graphs to see exact values
+- Use smoothing slider to reduce noise
+
+**Metrics available:**
+- **Training:** loss, learning rate, progress
+- **Performance:** tokens/sec, steps/sec, elapsed time
+- **Per-GPU:** utilization %, memory GB, temperature °C, power W
+- **Aggregate:** avg utilization, total memory, avg temp, total power
+
+**Log Organization:**
+```
+logs/
+├── job_12345/
+│   ├── slurm.out              # SLURM stdout
+│   ├── slurm.err              # SLURM stderr  
+│   ├── tensorboard/           # TensorBoard events
+│   ├── training_summary.txt   # Training summary
+│   ├── validation_results.json # Validation results
+│   └── benchmark_results.json  # Performance metrics
+└── job_12346/
+    └── ...
+
+checkpoints/
+├── job_12345/
+│   ├── checkpoint-100/
+│   └── final_adapter/
+└── job_12346/
+    └── ...
+```
+
 ---
 
 ## View Results
@@ -146,6 +203,12 @@ df -h /shared /mnt/network-disk
 
 # Clean checkpoints
 source scripts/monitor.sh && clean_checkpoints
+
+# Start TensorBoard
+source scripts/monitor.sh && start_tensorboard
+
+# Stop TensorBoard
+pkill -f tensorboard
 
 # Cancel job
 scancel <JOB_ID>

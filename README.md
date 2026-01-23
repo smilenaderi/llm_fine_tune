@@ -16,6 +16,16 @@ This project provides a production-ready pipeline for fine-tuning LLMs on functi
 
 The pipeline uses LoRA for efficient parameter updates, FSDP for distributed training, and Flash Attention 2 for H100/H200 optimization.
 
+## Storage
+
+**Persistent (survives restarts):**
+- `/shared` - Network storage accessible across all compute nodes. Store code, models, datasets, and checkpoints here.
+
+**Ephemeral (cleared on restart):**
+- `/tmp`, `/run`, `/dev/shm` - Temporary storage. Don't store important data here.
+
+All project files should be in `/shared` to ensure they're available during distributed training.
+
 ## Project Structure
 
 ```
