@@ -65,14 +65,7 @@ lora:
   r: 32
 ```
 
-### 2. Prepare Data
-
-```bash
-source envs/llm-env/bin/activate
-python scripts/prepare_data.py
-```
-
-### 3. Train
+### 2. Train
 
 ```bash
 sbatch scripts/submit_job.sh
@@ -296,6 +289,5 @@ sinfo -N -l
 **Ready to start?** Just run:
 ```bash
 nano config.yaml          # Choose your preset
-python scripts/prepare_data.py
 sbatch scripts/submit_job.sh
 ```
