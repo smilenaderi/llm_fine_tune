@@ -28,9 +28,9 @@ storage:
 model:
   # Base model to fine-tune
   # Small (1-3B): Qwen/Qwen2.5-1.5B-Instruct, microsoft/Phi-3-mini-4k-instruct
-  # Medium (7-8B): Qwen/Qwen2.5-7B-Instruct, meta-llama/Llama-3.1-8B-Instruct
-  # Large (14-70B): Qwen/Qwen2.5-14B-Instruct, meta-llama/Llama-3.1-70B-Instruct
-  model_id: "microsoft/Phi-3-mini-4k-instruct"
+  # Medium (7-8B): Qwen/Qwen2.5-7B-Instruct
+  # Large (14-70B): Qwen/Qwen2.5-72B-Instruct
+  model_id: "Qwen/Qwen2.5-7B-Instruct"
   
   torch_dtype: "bfloat16"
   use_flash_attention: false  # Set to true if flash-attn is installed (H100/H200 optimization)
@@ -47,7 +47,7 @@ dataset:
   name: "glaiveai/glaive-function-calling-v2"
   
   split: "train"             # Dataset split to use
-  max_samples: 10000          # Number of samples (null = use all)
+  max_samples: 1000          # Number of samples (null = use all)
   streaming: true            # Memory efficient for large datasets
   text_field: "chat"         # Text field name in dataset
 
@@ -55,8 +55,8 @@ dataset:
 # LORA CONFIGURATION
 # ============================================================================
 lora:
-  r: 16                      # LoRA rank (8=fast, 16=balanced, 32=quality)
-  lora_alpha: 32             # LoRA scaling factor
+  r: 8                       # LoRA rank (8=fast, 16=balanced, 32=quality)
+  lora_alpha: 16             # LoRA scaling factor
   lora_dropout: 0.05         # Dropout for LoRA layers
   bias: "none"               # Bias training: "none", "all", "lora_only"
   

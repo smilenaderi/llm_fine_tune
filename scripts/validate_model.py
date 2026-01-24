@@ -133,15 +133,25 @@ def generate_response(model, tokenizer, messages, config):
     # Tokenize
     inputs = tokenizer([text], return_tensors="pt").to(model.device)
     
-    # Generate
+    # Generate with fallback for cache compatibility issues
+    generation_kwargs = {
+        'max_new_tokens': inference_config.get('max_new_tokens', 256),
+        'temperature': inference_config.get('temperature', 0.7),
+        'top_p': inference_config.get('top_p', 0.9),
+        'do_sample': inference_config.get('do_sample', True)
+    }
+    
     with torch.no_grad():
-        generated_ids = model.generate(
-            **inputs,
-            max_new_tokens=inference_config.get('max_new_tokens', 256),
-            temperature=inference_config.get('temperature', 0.7),
-            top_p=inference_config.get('top_p', 0.9),
-            do_sample=inference_config.get('do_sample', True)
-        )
+        try:
+            # Try with cache enabled (default behavior)
+            generated_ids = model.generate(**inputs, **generation_kwargs)
+        except AttributeError as e:
+            if 'seen_tokens' in str(e) or 'DynamicCache' in str(e):
+                # Fallback: disable cache for models with cache compatibility issues
+                logger.warning(f"⚠️  Cache compatibility issue detected, disabling cache: {e}")
+                generated_ids = model.generate(**inputs, **generation_kwargs, use_cache=False)
+            else:
+                raise
     
     # Decode
     generated_ids = [

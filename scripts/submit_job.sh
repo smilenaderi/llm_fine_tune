@@ -79,10 +79,6 @@ if [ $TRAIN_EXIT_CODE -eq 0 ]; then
     echo "✅ Training completed successfully"
     echo "=========================================="
     
-    # Generate training summary
-    echo "Generating training summary..."
-    python scripts/generate_summary.py > "$JOB_LOG_DIR/training_summary.txt"
-    
     # Run validation
     echo "Running model validation..."
     python scripts/validate_model.py

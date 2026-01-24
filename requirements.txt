@@ -10,6 +10,9 @@ bitsandbytes==0.45.0
 # Configuration
 pyyaml==6.0.2
 
+# Tokenization
+tiktoken>=0.5.0
+
 # Optimization (H100/H200)
 flash-attn>=2.0.0
 ninja>=1.11.0

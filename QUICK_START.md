@@ -142,7 +142,6 @@ logs/
 │   ├── slurm.out              # SLURM stdout
 │   ├── slurm.err              # SLURM stderr  
 │   ├── tensorboard/           # TensorBoard events
-│   ├── training_summary.txt   # Training summary
 │   ├── validation_results.json # Validation results
 │   └── benchmark_results.json  # Performance metrics
 └── job_12346/

@@ -42,7 +42,7 @@ pip install packaging ninja wheel
 # 6. Install ML libraries
 echo ""
 echo "📚 Installing ML libraries..."
-pip install transformers datasets peft accelerate trl bitsandbytes pyyaml
+pip install transformers datasets peft accelerate trl bitsandbytes pyyaml tiktoken
 
 # 7. Install Flash Attention (H100/H200 optimization)
 echo ""
@@ -67,7 +67,12 @@ echo ""
 echo "📊 Installing monitoring tools..."
 pip install nvitop tensorboard
 
-# 9. Hugging Face login
+# 9. Install development tools
+echo ""
+echo "🧪 Installing development tools..."
+pip install pytest
+
+# 10. Hugging Face login
 echo ""
 echo "🤗 Hugging Face Authentication (Optional)"
 echo "Only required for gated models (e.g., Llama, Mistral)."
@@ -84,7 +89,7 @@ else
     echo "   See HUGGINGFACE_SETUP.md for more details."
 fi
 
-# 10. Verify installation
+# 11. Verify installation
 echo ""
 echo "✅ Verifying installation..."
 python -c "import torch; print(f'PyTorch: {torch.__version__}')"

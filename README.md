@@ -2,6 +2,10 @@
 
 A fully configurable program for fine-tuning large language models from Hugging Face using function-calling datasets. Built for distributed training on GPU clusters with FSDP (Fully Sharded Data Parallel) and Flash Attention 2 optimization.
 
+**🚀 [Quick Start Guide](QUICK_START.md)** - Get up and running in minutes
+
+This solution is tested and prepared for **Nebius Slurm Operator** (Slurm operator on Nebius managed Kubernetes).
+
 ## What Is This?
 
 This project provides a production-ready pipeline for fine-tuning LLMs on function-calling tasks. Everything is controlled through a single `config.yaml` file - select your model, dataset, and training parameters without touching code. The system handles distributed training, checkpointing, validation, and benchmarking automatically.
@@ -39,8 +43,7 @@ llm-fine-tune/
 │   ├── config_loader.py    # Configuration parser
 │   ├── validate_model.py   # Model validation tests
 │   ├── inference.py        # Inference script
-│   ├── monitor.sh          # Monitoring utilities
-│   └── generate_summary.py # Training summary generator
+│   └── monitor.sh          # Monitoring utilities
 ├── tests/
 │   └── test_scripts.py     # Basic project tests
 ├── data/                   # Dataset cache

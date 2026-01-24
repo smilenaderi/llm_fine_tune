@@ -40,7 +40,6 @@ jobs:
         python -c "import sys; sys.path.insert(0, 'scripts'); import fine_tune; print('✓ fine_tune.py imports OK')"
         python -c "import sys; sys.path.insert(0, 'scripts'); import inference; print('✓ inference.py imports OK')"
         python -c "import sys; sys.path.insert(0, 'scripts'); import validate_model; print('✓ validate_model.py imports OK')"
-        python -c "import sys; sys.path.insert(0, 'scripts'); import generate_summary; print('✓ generate_summary.py imports OK')"
     
     - name: Validate SLURM script
       run: |
