@@ -144,12 +144,36 @@ On 4x H200 GPUs:
 
 See [QUICK_START.md](QUICK_START.md) for detailed setup instructions and deployment guide.
 
+## Running Inference
+
+After training completes, run inference on your fine-tuned model:
+
+```bash
+# List available models
+bash scripts/list_models.sh
+
+# Run with your own prompt
+sbatch scripts/run_inf.sh 22 "Book a flight from NYC to Paris"
+
+# Check status and view results
+squeue --me
+tail -f logs/inference_*.out
+```
+
+**Important:** 
+- ✅ Always use `sbatch` (login node has no GPU)
+- ✅ Model is auto-detected from adapter config
+- ✅ No need to edit config.yaml
+
+See [INFERENCE_GUIDE.md](INFERENCE_GUIDE.md) for full documentation.
+
 ## Documentation
 
-- [QUICK_START.md](QUICK_START.md) - Setup and usage guide
-- [COMMANDS.md](COMMANDS.md) - Full list of available commands
+- [QUICK_START.md](QUICK_START.md) - Setup and training guide
+- [INFERENCE_GUIDE.md](INFERENCE_GUIDE.md) - Inference documentation
+- [COMMANDS.md](COMMANDS.md) - Available commands
 - [HUGGINGFACE_SETUP.md](HUGGINGFACE_SETUP.md) - Hugging Face authentication
-- [config.yaml](config.yaml) - Complete configuration reference
+- [config.yaml](config.yaml) - Configuration reference
 
 ## License
 
