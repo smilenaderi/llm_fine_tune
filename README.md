@@ -6,6 +6,8 @@ A fully configurable program for fine-tuning large language models from Hugging 
 
 This solution is tested and prepared for **Nebius Slurm Operator** (Slurm operator on Nebius managed Kubernetes).
 
+**📊 TensorBoard Integration** - We've added TensorBoard for real-time training observability and metrics visualization.
+
 ## What Is This?
 
 This project provides a production-ready pipeline for fine-tuning LLMs on function-calling tasks. Everything is controlled through a single `config.yaml` file - select your model, dataset, and training parameters without touching code. The system handles distributed training, checkpointing, validation, and benchmarking automatically.
@@ -112,6 +114,39 @@ llm-fine-tune/
 
 Usage: `source scripts/monitor.sh` then call functions directly
 
+**TensorBoard**
+
+Monitor training metrics in real-time with TensorBoard:
+
+```bash
+# Start TensorBoard (from login node or compute node)
+tensorboard --logdir=logs/tensorboard --port=6006
+
+# Access in browser
+# If running on cluster, use port forwarding:
+ssh -L 6006:localhost:6006 user@cluster-address
+# Then open: http://localhost:6006
+```
+
+TensorBoard tracks:
+- Training/validation loss
+- Learning rate schedule
+- GPU memory usage
+- Throughput (tokens/second)
+- Gradient norms
+- Custom metrics from training
+
+**TensorBoard Screenshots:**
+
+![Training Loss](images/tensorboard-training-loss.png)
+*Training loss visualization - Qwen 72B fine-tuning on 2x8 H100 GPUs*
+
+![Metrics Overview](images/tensorboard-metrics-overview.png)
+*Metrics dashboard - Qwen 72B fine-tuning on 2x8 H100 GPUs*
+
+![Scalars Dashboard](images/tensorboard-scalars-dashboard.png)
+*Scalar metrics tracking - Qwen 72B fine-tuning on 2x8 H100 GPUs*
+
 ## Tests
 
 **`tests/test_scripts.py`**
@@ -136,12 +171,6 @@ All settings are in `config.yaml`:
 - **Validation**: Split ratio, evaluation frequency, metrics
 
 See `config.yaml` for detailed documentation and presets.
-
-## Performance
-
-On 4x H200 GPUs:
-- 20k samples, 1 epoch: 15-30 minutes @ 12-15k tok/s
-- 60k samples, 3 epochs: 2-4 hours @ 12-15k tok/s
 
 ## Getting Started
 
