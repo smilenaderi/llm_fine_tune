@@ -70,6 +70,12 @@ lora:
 # TRAINING CONFIGURATION
 # ============================================================================
 training:
+  # Training run identifier (for checkpoint resumption across jobs)
+  # If null, uses SLURM_JOB_ID (creates new folder each time)
+  # If set, uses this name (allows resuming across different SLURM jobs)
+  # Example: "qwen32b_experiment1", "production_run_v2"
+  run_name: null
+  
   num_train_epochs: 1
   max_steps: -1              # -1 = use num_train_epochs
   

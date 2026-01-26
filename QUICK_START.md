@@ -71,6 +71,23 @@ lora:
 sbatch scripts/submit_job.sh
 ```
 
+#### Resuming Training
+
+To resume training across multiple job submissions (e.g., if interrupted), set a persistent run name in `config.yaml`:
+
+```yaml
+training:
+  run_name: "qwen32b_exp1"  # Use any descriptive name
+```
+
+Then submit multiple times - it will automatically resume from the last checkpoint:
+```bash
+sbatch scripts/submit_job.sh  # First run
+sbatch scripts/submit_job.sh  # Resumes from checkpoint
+```
+
+If `run_name: null` (default), each job creates a new folder and won't resume.
+
 ---
 
 ## Monitor Training

@@ -286,11 +286,16 @@ class BenchmarkCallback(TrainerCallback):
     
     def _save_benchmark_results(self, state):
         """Save benchmark results to file"""
-        # Get job ID from environment
-        job_id = os.environ.get('SLURM_JOB_ID', f'local_{int(time.time())}')
+        # Get run identifier (use run_name if set, otherwise SLURM_JOB_ID)
+        run_name = self.config.get('training.run_name')
+        if run_name:
+            run_id = run_name
+        else:
+            job_id = os.environ.get('SLURM_JOB_ID', f'local_{int(time.time())}')
+            run_id = f'job_{job_id}'
         
-        # Save to job-specific directory
-        job_log_dir = os.path.join(self.config.get('storage.log_dir'), f'job_{job_id}')
+        # Save to run-specific directory
+        job_log_dir = os.path.join(self.config.get('storage.log_dir'), run_id)
         os.makedirs(job_log_dir, exist_ok=True)
         benchmark_file = os.path.join(job_log_dir, 'benchmark_results.json')
         
@@ -306,7 +311,8 @@ class BenchmarkCallback(TrainerCallback):
                     final_loss = log['loss']
         
         results = {
-            'job_id': job_id,
+            'run_id': run_id,
+            'slurm_job_id': os.environ.get('SLURM_JOB_ID', 'local'),
             'timestamp': datetime.now().isoformat(),
             'total_training_time_seconds': self.metrics['training_time'],
             'total_steps': state.global_step,
@@ -491,16 +497,23 @@ def create_training_args(config):
     dataset_config = config.get_dataset_config()
     distributed_config = config.get_distributed_config()
     
-    # Get job ID for organizing outputs
-    job_id = os.environ.get('SLURM_JOB_ID', f'local_{int(time.time())}')
+    # Get run identifier (use run_name if set, otherwise SLURM_JOB_ID)
+    run_name = training_config.get('run_name')
+    if run_name:
+        run_id = run_name
+        logger.info(f"📌 Using named training run: {run_name}")
+    else:
+        job_id = os.environ.get('SLURM_JOB_ID', f'local_{int(time.time())}')
+        run_id = f'job_{job_id}'
+        logger.info(f"📁 Using SLURM job ID: {job_id}")
     
-    # Create job-specific directories
-    job_log_dir = os.path.join(storage_config['log_dir'], f'job_{job_id}')
-    job_checkpoint_dir = os.path.join(storage_config['checkpoint_dir'], f'job_{job_id}')
+    # Create run-specific directories
+    job_log_dir = os.path.join(storage_config['log_dir'], run_id)
+    job_checkpoint_dir = os.path.join(storage_config['checkpoint_dir'], run_id)
     os.makedirs(job_log_dir, exist_ok=True)
     os.makedirs(job_checkpoint_dir, exist_ok=True)
     
-    logger.info(f"📁 Job ID: {job_id}")
+    logger.info(f"📁 Run ID: {run_id}")
     logger.info(f"📁 Logs: {job_log_dir}")
     logger.info(f"📁 Checkpoints: {job_checkpoint_dir}")
     
@@ -616,9 +629,18 @@ def main():
         
         # Check for existing checkpoints
         checkpointing_config = config.get_checkpointing_config()
+        training_config = config.get_training_config()
         last_checkpoint = None
-        job_id = os.environ.get('SLURM_JOB_ID', f'local_{int(time.time())}')
-        output_dir = os.path.join(config.get('storage.checkpoint_dir'), f'job_{job_id}')
+        
+        # Get run identifier
+        run_name = training_config.get('run_name')
+        if run_name:
+            run_id = run_name
+        else:
+            job_id = os.environ.get('SLURM_JOB_ID', f'local_{int(time.time())}')
+            run_id = f'job_{job_id}'
+        
+        output_dir = os.path.join(config.get('storage.checkpoint_dir'), run_id)
         
         if checkpointing_config.get('resume_from_checkpoint') and os.path.isdir(output_dir):
             from transformers.trainer_utils import get_last_checkpoint

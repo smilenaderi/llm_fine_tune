@@ -16,42 +16,48 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def find_latest_job(checkpoint_dir):
-    """Find the most recent job with a final_adapter"""
-    job_dirs = [d for d in Path(checkpoint_dir).glob("job_*") if d.is_dir()]
+def find_latest_run(checkpoint_dir):
+    """Find the most recent run with a final_adapter"""
+    run_dirs = [d for d in Path(checkpoint_dir).iterdir() if d.is_dir()]
     
-    if not job_dirs:
+    if not run_dirs:
         return None
     
-    # Sort by job number (extract number from job_XX)
-    job_dirs.sort(key=lambda x: int(x.name.split('_')[1]), reverse=True)
+    # Sort by modification time (most recent first)
+    run_dirs.sort(key=lambda x: x.stat().st_mtime, reverse=True)
     
-    # Find first job with final_adapter
-    for job_dir in job_dirs:
-        adapter_path = job_dir / "final_adapter"
+    # Find first run with final_adapter
+    for run_dir in run_dirs:
+        adapter_path = run_dir / "final_adapter"
         if adapter_path.exists():
-            return job_dir.name.split('_')[1]  # Return just the number
+            return run_dir.name
     
     return None
 
 
-def find_adapter_path(checkpoint_dir, job_id=None):
-    """Find adapter path for a specific job or latest job"""
-    if job_id:
-        # Use specific job
-        adapter_path = os.path.join(checkpoint_dir, f"job_{job_id}", "final_adapter")
+def find_adapter_path(checkpoint_dir, run_id=None):
+    """Find adapter path for a specific run or latest run"""
+    if run_id:
+        # Try with run_id directly first
+        adapter_path = os.path.join(checkpoint_dir, run_id, "final_adapter")
         if os.path.exists(adapter_path):
-            return adapter_path, job_id
-        else:
-            logger.error(f"❌ Adapter not found for job {job_id}")
-            logger.error(f"   Expected: {adapter_path}")
-            return None, None
+            return adapter_path, run_id
+        
+        # Try with job_ prefix for backward compatibility
+        adapter_path = os.path.join(checkpoint_dir, f"job_{run_id}", "final_adapter")
+        if os.path.exists(adapter_path):
+            return adapter_path, f"job_{run_id}"
+        
+        logger.error(f"❌ Adapter not found for run: {run_id}")
+        logger.error(f"   Tried: {checkpoint_dir}/{run_id}/final_adapter")
+        logger.error(f"   Tried: {checkpoint_dir}/job_{run_id}/final_adapter")
+        return None, None
     else:
-        # Find latest job
-        latest_job = find_latest_job(checkpoint_dir)
-        if latest_job:
-            adapter_path = os.path.join(checkpoint_dir, f"job_{latest_job}", "final_adapter")
-            return adapter_path, latest_job
+        # Find latest run
+        latest_run = find_latest_run(checkpoint_dir)
+        if latest_run:
+            adapter_path = os.path.join(checkpoint_dir, latest_run, "final_adapter")
+            return adapter_path, latest_run
         else:
             # Fallback to old location
             adapter_path = os.path.join(checkpoint_dir, "final_adapter")
@@ -63,26 +69,32 @@ def find_adapter_path(checkpoint_dir, job_id=None):
 def main():
     # Parse arguments
     parser = argparse.ArgumentParser(description='Run inference with fine-tuned model')
-    parser.add_argument('--job-id', type=str, help='Job ID to use (e.g., 36)', default=None)
+    parser.add_argument('--run-id', type=str, help='Training run ID to use (e.g., "qwen32b_exp1" or "job_36")', default=None)
+    parser.add_argument('--job-id', type=str, help='[Deprecated] Use --run-id instead', default=None)
     parser.add_argument('--prompt', type=str, help='Custom prompt for inference', default=None)
     parser.add_argument('--prompts-file', type=str, help='File with multiple prompts (one per line)', default=None)
     parser.add_argument('--config', type=str, help='Path to config file', default='config.yaml')
     parser.add_argument('--interactive', action='store_true', help='Interactive mode - enter prompts one by one')
     args = parser.parse_args()
     
+    # Handle backward compatibility
+    if args.job_id and not args.run_id:
+        args.run_id = args.job_id
+        logger.warning("⚠️  --job-id is deprecated, use --run-id instead")
+    
     try:
         # Load configuration
         logger.info("📋 Loading configuration...")
         
-        # If job-id is specified, try to load config from that job's snapshot
+        # If run-id is specified, try to load config from that run's snapshot
         config_path = args.config
-        if args.job_id:
-            job_config_path = f"logs/job_{args.job_id}/config.yaml"
-            if os.path.exists(job_config_path):
-                config_path = job_config_path
-                logger.info(f"✓ Using config snapshot from job {args.job_id}")
+        if args.run_id:
+            run_config_path = f"logs/{args.run_id}/config.yaml"
+            if os.path.exists(run_config_path):
+                config_path = run_config_path
+                logger.info(f"✓ Using config snapshot from run: {args.run_id}")
             else:
-                logger.warning(f"⚠️  Config snapshot not found for job {args.job_id}, using current config.yaml")
+                logger.warning(f"⚠️  Config snapshot not found for run {args.run_id}, using current config.yaml")
         
         config = load_config(config_path)
         
@@ -91,26 +103,27 @@ def main():
         inference_config = config.get_inference_config()
         
         # Find adapter path
-        adapter_path, job_id = find_adapter_path(storage_config['checkpoint_dir'], args.job_id)
+        adapter_path, run_id = find_adapter_path(storage_config['checkpoint_dir'], args.run_id)
         
         if not adapter_path:
             logger.error("❌ No trained adapter found!")
             logger.error("💡 Available options:")
             logger.error("   1. Run training: sbatch scripts/submit_job.sh")
-            logger.error("   2. Specify job ID: sbatch scripts/run_inf.sh <job_id>")
+            logger.error("   2. Specify run ID: python scripts/inference.py --run-id <run_id>")
             
-            # List available jobs
+            # List available runs
             checkpoint_dir = Path(storage_config['checkpoint_dir'])
-            job_dirs = sorted([d for d in checkpoint_dir.glob("job_*") if d.is_dir()])
-            if job_dirs:
-                logger.error("\n   Available trained jobs:")
-                for job_dir in job_dirs:
-                    adapter = job_dir / "final_adapter"
+            run_dirs = sorted([d for d in checkpoint_dir.iterdir() if d.is_dir()])
+            if run_dirs:
+                logger.error("\n   Available trained runs:")
+                for run_dir in run_dirs:
+                    adapter = run_dir / "final_adapter"
                     if adapter.exists():
-                        logger.error(f"     - {job_dir.name.split('_')[1]}")
+                        logger.error(f"     - {run_dir.name}")
             sys.exit(1)
         
-        logger.info(f"✓ Using adapter from job {job_id}: {adapter_path}")
+        logger.info(f"✓ Using adapter from run: {run_id}")
+        logger.info(f"📁 Path: {adapter_path}")
         
         # Read the actual base model from adapter config (most reliable)
         adapter_config_file = os.path.join(adapter_path, "adapter_config.json")

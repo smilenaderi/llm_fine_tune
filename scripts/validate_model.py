@@ -69,18 +69,25 @@ def load_model_and_tokenizer(config):
     """Load base model, tokenizer, and adapter
     
     Note: This function uses the model_id from the config that was passed in.
-    The main() function ensures we load the job-specific config snapshot
+    The main() function ensures we load the run-specific config snapshot
     that was saved during training, so we always use the correct base model.
     """
     model_config = config.get_model_config()
     storage_config = config.get_storage_config()
+    training_config = config.get_training_config()
     
     base_model_id = model_config['model_id']
     
-    # Get job ID and construct path to adapter
-    job_id = os.environ.get('SLURM_JOB_ID', f'local_{int(time.time())}')
-    job_checkpoint_dir = os.path.join(storage_config['checkpoint_dir'], f'job_{job_id}')
-    adapter_path = os.path.join(job_checkpoint_dir, "final_adapter")
+    # Get run identifier (use run_name if set, otherwise SLURM_JOB_ID)
+    run_name = training_config.get('run_name')
+    if run_name:
+        run_id = run_name
+    else:
+        job_id = os.environ.get('SLURM_JOB_ID', f'local_{int(time.time())}')
+        run_id = f'job_{job_id}'
+    
+    run_checkpoint_dir = os.path.join(storage_config['checkpoint_dir'], run_id)
+    adapter_path = os.path.join(run_checkpoint_dir, "final_adapter")
     
     logger.info(f"📥 Loading base model: {base_model_id}")
     
@@ -105,7 +112,7 @@ def load_model_and_tokenizer(config):
         logger.info(f"📥 Loading adapter from: {adapter_path}")
         if not os.path.exists(adapter_path):
             logger.error(f"❌ Adapter not found at {adapter_path}")
-            logger.error(f"💡 Expected location: {job_checkpoint_dir}/final_adapter")
+            logger.error(f"💡 Expected location: {run_checkpoint_dir}/final_adapter")
             logger.error("💡 Run training first: sbatch scripts/submit_job.sh")
             sys.exit(1)
         
@@ -232,14 +239,24 @@ def run_validation(model, tokenizer, config):
     
     # Save results
     storage_config = config.get_storage_config()
-    job_id = os.environ.get('SLURM_JOB_ID', f'local_{int(time.time())}')
-    job_log_dir = os.path.join(storage_config['log_dir'], f'job_{job_id}')
-    os.makedirs(job_log_dir, exist_ok=True)
-    results_file = os.path.join(job_log_dir, 'validation_results.json')
+    training_config = config.get_training_config()
+    
+    # Get run identifier
+    run_name = training_config.get('run_name')
+    if run_name:
+        run_id = run_name
+    else:
+        job_id = os.environ.get('SLURM_JOB_ID', f'local_{int(time.time())}')
+        run_id = f'job_{job_id}'
+    
+    run_log_dir = os.path.join(storage_config['log_dir'], run_id)
+    os.makedirs(run_log_dir, exist_ok=True)
+    results_file = os.path.join(run_log_dir, 'validation_results.json')
     
     with open(results_file, 'w') as f:
         json.dump({
-            'job_id': job_id,
+            'run_id': run_id,
+            'slurm_job_id': os.environ.get('SLURM_JOB_ID', 'local'),
             'average_score': avg_score,
             'total_tests': len(TEST_CASES),
             'results': results
@@ -252,22 +269,30 @@ def run_validation(model, tokenizer, config):
 
 def main():
     try:
-        # Load configuration from job-specific copy
+        # Load configuration from run-specific copy
         logger.info("📋 Loading configuration...")
         
-        # Get job ID and construct path to job-specific config
-        job_id = os.environ.get('SLURM_JOB_ID', f'local_{int(time.time())}')
-        storage_config_path = 'config.yaml'
+        # First, load main config to get run_name
+        main_config = load_config('config.yaml')
+        training_config = main_config.get_training_config()
         
-        # Try to load from job-specific config first (saved during training)
-        job_config_path = f'logs/job_{job_id}/config.yaml'
-        if os.path.exists(job_config_path):
-            logger.info(f"✓ Using job-specific config: {job_config_path}")
-            config = load_config(job_config_path)
+        # Get run identifier
+        run_name = training_config.get('run_name')
+        if run_name:
+            run_id = run_name
         else:
-            logger.warning(f"⚠️  Job-specific config not found at {job_config_path}")
-            logger.info(f"   Using main config: {storage_config_path}")
-            config = load_config(storage_config_path)
+            job_id = os.environ.get('SLURM_JOB_ID', f'local_{int(time.time())}')
+            run_id = f'job_{job_id}'
+        
+        # Try to load from run-specific config first (saved during training)
+        run_config_path = f'logs/{run_id}/config.yaml'
+        if os.path.exists(run_config_path):
+            logger.info(f"✓ Using run-specific config: {run_config_path}")
+            config = load_config(run_config_path)
+        else:
+            logger.warning(f"⚠️  Run-specific config not found at {run_config_path}")
+            logger.info(f"   Using main config: config.yaml")
+            config = main_config
         
         # Load model and tokenizer
         model, tokenizer = load_model_and_tokenizer(config)
